@@ -212,3 +212,60 @@ describe('App table flow (F1)', () => {
     expect(screen.queryByText(/está salva neste navegador/)).toBeNull()
   })
 })
+
+describe('App persistence and reconnect rules (F1 review)', () => {
+  it('saves nothing while calibrating; saves from the first "Ir para a mesa"', async () => {
+    const user = userEvent.setup()
+    mockDisplayMedia(() => Promise.resolve(asMediaStream(new FakeStream())))
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Selecionar fonte de vídeo' }))
+    await user.click(await screen.findByRole('button', { name: 'Próximo: jogadores' }))
+    await user.type(screen.getByLabelText('Personagem 1'), 'Bardo')
+    expect(localStorage.getItem('virtual-rpg-table/config/v1')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Ir para a mesa' }))
+    const saved = JSON.parse(localStorage.getItem('virtual-rpg-table/config/v1') ?? 'null')
+    expect(saved?.players?.[0]?.character).toBe('Bardo')
+  })
+
+  it('a fresh start from setup is not treated as a table reconnect', async () => {
+    const user = userEvent.setup()
+    const track = new FakeTrack()
+    const gdm = mockDisplayMedia(() => Promise.resolve(asMediaStream(new FakeStream([track]))))
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Selecionar fonte de vídeo' }))
+    await user.click(await screen.findByRole('button', { name: 'Próximo: jogadores' }))
+    await user.click(screen.getByRole('button', { name: 'Ir para a mesa' }))
+    act(() => track.endFromBrowser())
+
+    gdm.mockImplementation(() => Promise.reject(domError('NotAllowedError')))
+    await user.click(screen.getByRole('button', { name: 'Reconectar' }))
+    await screen.findByText(/seleção foi cancelada/)
+    await user.click(screen.getByRole('button', { name: 'Voltar ao início' }))
+
+    // Cancelling from the setup screen must leave us on the setup screen.
+    await user.click(screen.getByRole('button', { name: 'Selecionar fonte de vídeo' }))
+    expect(await screen.findByText(/seleção foi cancelada/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Mesa' })).toBeNull()
+  })
+
+  it('warns on the table when the local video cannot be played', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const { defaultConfig } = await import('../features/table/model')
+    const { saveTableConfig } = await import('../features/table/storage')
+    saveTableConfig(defaultConfig())
+    const createObjectURL = vi.fn<(b: Blob) => string>(() => 'blob:broken')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn<(u: string) => void>() })
+    const { container } = render(<App />)
+    await user.upload(
+      screen.getByLabelText('Carregar vídeo local de teste'),
+      new File(['junk'], 'x.mp4', { type: 'video/mp4' }),
+    )
+    await screen.findByRole('heading', { name: 'Mesa' })
+    const video = container.querySelector('video')
+    act(() => {
+      video?.dispatchEvent(new Event('error'))
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/não conseguiu reproduzir este vídeo/)
+  })
+})

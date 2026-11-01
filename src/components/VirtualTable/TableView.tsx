@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { AttachedMedia, CaptureState } from '../../features/capture/types'
 import { FULL_FRAME, portraitFrameRect } from '../../features/compositor/portrait'
 import {
@@ -22,6 +22,9 @@ export interface TableViewProps {
 export function TableView({ config, capture, onCalibrate, onReconnect, onStop }: TableViewProps) {
   const media: AttachedMedia | null = capture.status === 'active' ? capture.media : null
   const [video, videoRef] = useAttachedVideo(media)
+  // Remembers which media failed to play, so a new source clears the error.
+  const [failedMedia, setFailedMedia] = useState<AttachedMedia | null>(null)
+  const playbackError = media !== null && failedMedia === media
   const videoSize = useVideoSize(video)
 
   const rects = useMemo<PortraitRects>(() => {
@@ -47,6 +50,7 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
         autoPlay
         loop={capture.status === 'active' && capture.kind === 'file'}
         disablePictureInPicture
+        onError={() => setFailedMedia(media)}
         aria-hidden="true"
         className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
       />
@@ -71,6 +75,16 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
           </button>
         </div>
       </header>
+
+      {playbackError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-200"
+        >
+          O navegador não conseguiu reproduzir este vídeo (formato ou codec sem suporte). Use “Parar
+          captura” e escolha outra fonte.
+        </p>
+      )}
 
       {lost && <LostSourceBanner capture={capture} onReconnect={onReconnect} onStop={onStop} />}
 

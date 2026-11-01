@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   clampPortrait,
   FULL_FRAME,
@@ -41,6 +41,7 @@ interface DragState {
 }
 
 const pct = (v: number): string => `${v * 100}%`
+const pctLabel = (v: number): string => `${Math.round(v * 100)}%`
 
 /**
  * Overlay with one draggable 3:4 frame per portrait. Body drag moves; the
@@ -48,27 +49,33 @@ const pct = (v: number): string => `${v * 100}%`
  */
 export function CropEditor({ display, video, roi, boxes, onChange }: CropEditorProps) {
   const drag = useRef<DragState | null>(null)
+  // The box being touched/focused is raised above its neighbours.
+  const [activeId, setActiveId] = useState<string | null>(null)
   if (display.width <= 0 || display.height <= 0) return null
 
   const regionOf = (box: CropBox): NormRect => (box.region === 'roi' ? roi : FULL_FRAME)
 
-  const update = (box: CropBox, next: PortraitCrop): void => {
+  /** Clamped to the region: stored crops may predate a ROI/resolution change. */
+  const clamped = (box: CropBox, crop: PortraitCrop): PortraitCrop => {
     const regionPx = regionPixels(regionOf(box), video)
-    onChange(box.id, regionPx ? clampPortrait(next, regionPx) : next)
+    return regionPx ? clampPortrait(crop, regionPx) : crop
   }
+
+  const update = (box: CropBox, next: PortraitCrop): void => onChange(box.id, clamped(box, next))
 
   const beginDrag = (event: PointerEvent<HTMLElement>, box: CropBox, mode: DragState['mode']) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
+    setActiveId(box.id)
     drag.current = {
       pointerId: event.pointerId,
       id: box.id,
       mode,
       startX: event.clientX,
       startY: event.clientY,
-      startCrop: box.crop,
+      startCrop: clamped(box, box.crop),
     }
   }
 
@@ -95,7 +102,7 @@ export function CropEditor({ display, video, roi, boxes, onChange }: CropEditorP
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>, box: CropBox): void => {
     const step = event.altKey ? KEY_STEP_FINE : KEY_STEP
-    const c = box.crop
+    const c = clamped(box, box.crop)
     const moves: Record<string, PortraitCrop> = {
       ArrowLeft: { ...c, cx: c.cx - step },
       ArrowRight: { ...c, cx: c.cx + step },
@@ -130,14 +137,16 @@ export function CropEditor({ display, video, roi, boxes, onChange }: CropEditorP
       {boxes.map((box) => {
         const rect = portraitFrameRect(box.crop, regionOf(box), video)
         if (!rect) return null
+        const c = clamped(box, box.crop)
+        const where = box.region === 'roi' ? 'da câmera coletiva' : 'do quadro'
         return (
           <div
             key={box.id}
             role="group"
             tabIndex={0}
             data-testid={`crop-${box.id}`}
-            aria-label={`Recorte de ${box.label}. Setas movem; + e - ajustam o zoom; Alt deixa o passo fino.`}
-            className="pointer-events-auto absolute cursor-move touch-none border-2 outline-none focus-visible:ring-4 focus-visible:ring-white/60"
+            aria-label={`Recorte de ${box.label}: centro a ${pctLabel(c.cx)} da esquerda e ${pctLabel(c.cy)} do topo, altura de ${pctLabel(c.size)} ${where}. Setas movem; + e - ajustam o zoom; Alt deixa o passo fino.`}
+            className={`pointer-events-auto absolute cursor-move touch-none border-2 outline-none focus-visible:ring-4 focus-visible:ring-white/60 ${activeId === box.id ? 'z-[5]' : ''}`}
             style={{
               left: pct(rect.x),
               top: pct(rect.y),
@@ -150,6 +159,7 @@ export function CropEditor({ display, video, roi, boxes, onChange }: CropEditorP
             onPointerMove={(e) => onPointerMove(e, box)}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
+            onFocus={() => setActiveId(box.id)}
             onKeyDown={(e) => onKeyDown(e, box)}
           >
             <span
@@ -158,14 +168,30 @@ export function CropEditor({ display, video, roi, boxes, onChange }: CropEditorP
             >
               {box.label}
             </span>
-            <span
-              aria-hidden="true"
-              data-handle="zoom"
-              className="absolute left-full top-full h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-sm border-2 border-stone-950"
-              style={{ backgroundColor: box.color }}
-              onPointerDown={(e) => beginDrag(e, box, 'scale')}
-            />
           </div>
+        )
+      })}
+      {/* Zoom handles live in their own top layer: with players side by side,
+          a neighbour's frame would otherwise cover the handle. */}
+      {boxes.map((box) => {
+        const rect = portraitFrameRect(box.crop, regionOf(box), video)
+        if (!rect) return null
+        return (
+          <span
+            key={box.id}
+            aria-hidden="true"
+            data-handle={`zoom-${box.id}`}
+            className="pointer-events-auto absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none rounded-sm border-2 border-stone-950"
+            style={{
+              left: pct(rect.x + rect.width),
+              top: pct(rect.y + rect.height),
+              backgroundColor: box.color,
+            }}
+            onPointerDown={(e) => beginDrag(e, box, 'scale')}
+            onPointerMove={(e) => onPointerMove(e, box)}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          />
         )
       })}
     </div>

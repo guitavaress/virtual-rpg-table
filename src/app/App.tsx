@@ -7,7 +7,12 @@ import { LocalVideoFileSource } from '../features/capture/fileSource'
 import { SyntheticTestSource } from '../features/capture/syntheticSource'
 import { useCapture } from '../features/capture/useCapture'
 import { defaultConfig, type TableConfig } from '../features/table/model'
-import { clearTableConfig, loadTableConfig, saveTableConfig } from '../features/table/storage'
+import {
+  clearTableConfig,
+  isStorageWritable,
+  loadTableConfig,
+  saveTableConfig,
+} from '../features/table/storage'
 
 type View = 'calibrate' | 'table'
 
@@ -15,8 +20,10 @@ export function App() {
   const { state, start, stop } = useCapture()
   const [initial] = useState(loadTableConfig)
   const [config, setConfig] = useState<TableConfig>(initial.config)
-  // Only persist once the user changed something (or a saved config existed).
+  // Persisting starts at the first "Ir para a mesa" (or with an existing saved
+  // setup): an unfinished calibration is never saved nor reopened as a table.
   const [persist, setPersist] = useState(initial.saved)
+  const [storageWritable] = useState(() => isStorageWritable())
   // With a saved setup, the next capture opens straight on the table.
   const [view, setView] = useState<View>(initial.saved ? 'table' : 'calibrate')
   const [step, setStep] = useState<CalibrationStep>('roi')
@@ -29,7 +36,6 @@ export function App() {
 
   const updateConfig = useCallback((update: (c: TableConfig) => TableConfig) => {
     setConfig(update)
-    setPersist(true)
   }, [])
 
   const forgetConfig = (): void => {
@@ -97,7 +103,7 @@ export function App() {
   return (
     <CaptureSetup
       state={state}
-      hasSavedConfig={persist}
+      hasSavedConfig={persist && storageWritable}
       onSelectDisplay={selectDisplay}
       onSelectFile={selectFile}
       onSelectSynthetic={selectSynthetic}

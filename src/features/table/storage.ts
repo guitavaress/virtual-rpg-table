@@ -91,15 +91,32 @@ export function loadTableConfig(storage: Storage | undefined = safeStorage()): L
   return { config: defaultConfig(), saved: false }
 }
 
+/** Returns false when nothing could be stored (blocked storage, quota). */
 export function saveTableConfig(
   config: TableConfig,
   storage: Storage | undefined = safeStorage(),
-): void {
+): boolean {
+  if (!storage) return false
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(config))
+    storage.setItem(STORAGE_KEY, JSON.stringify(config))
+    return true
   } catch (err) {
     // Quota or privacy mode: the session still works, it just won't persist.
     console.warn('Não foi possível salvar a configuração.', err)
+    return false
+  }
+}
+
+/** Probes whether this browser lets us persist anything at all. */
+export function isStorageWritable(storage: Storage | undefined = safeStorage()): boolean {
+  if (!storage) return false
+  const probe = `${STORAGE_KEY}/probe`
+  try {
+    storage.setItem(probe, '1')
+    storage.removeItem(probe)
+    return true
+  } catch {
+    return false
   }
 }
 

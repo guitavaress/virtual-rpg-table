@@ -1,6 +1,7 @@
 import type { RefCallback } from 'react'
 import type { Size } from '../../features/calibration/roi'
 import {
+  clampPortrait,
   FULL_FRAME,
   maxPortraitSize,
   MIN_PORTRAIT_SIZE,
@@ -69,7 +70,11 @@ export function PlayersPanel({
             canvasRef={canvasRef(p.id)}
             onName={(name) => onPlayerChange(p.id, { name })}
             onCharacter={(character) => onPlayerChange(p.id, { character })}
-            onSize={(size) => onPlayerChange(p.id, { crop: { ...p.crop, size } })}
+            onSize={(size) => {
+              const crop = { ...p.crop, size }
+              // Clamp now so the stored center is valid (no dead zone when dragging).
+              onPlayerChange(p.id, { crop: roiPx ? clampPortrait(crop, roiPx) : crop })
+            }}
           />
         ))}
       </ol>
@@ -109,7 +114,10 @@ export function PlayersPanel({
           onCharacter={(character) => onRemoteChange({ character })}
           onSize={
             remote.mode === 'crop'
-              ? (size) => onRemoteChange({ crop: { ...remote.crop, size } })
+              ? (size) => {
+                  const crop = { ...remote.crop, size }
+                  onRemoteChange({ crop: framePx ? clampPortrait(crop, framePx) : crop })
+                }
               : undefined
           }
         />
@@ -193,6 +201,7 @@ function SlotRow(props: SlotRowProps) {
               max={maxSize}
               step={0.005}
               value={invert(Math.min(size, maxSize))}
+              aria-valuetext={`Recorte com ${Math.round(Math.min(size, maxSize) * 100)}% da altura`}
               onChange={(e) => props.onSize?.(invert(Number(e.target.value)))}
               className="w-full accent-amber-400"
               style={{ accentColor: color }}

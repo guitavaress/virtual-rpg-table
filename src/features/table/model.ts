@@ -1,5 +1,5 @@
 import { DEFAULT_ROI, type NormRect } from '../calibration/roi'
-import { distributePortraits, type PortraitCrop } from '../compositor/portrait'
+import { distributePortraits, regionPixels, type PortraitCrop } from '../compositor/portrait'
 
 export const PLAYER_COUNT = 5
 export const NAME_MAX = 40
@@ -45,7 +45,12 @@ export interface TableConfig {
 }
 
 export function defaultConfig(): TableConfig {
-  const crops = distributePortraits(PLAYER_COUNT, null)
+  // Assume a 16:9 capture until the real size is known, so the default
+  // frames sit side by side instead of overlapping.
+  const crops = distributePortraits(
+    PLAYER_COUNT,
+    regionPixels(DEFAULT_ROI, { width: 1920, height: 1080 }),
+  )
   return {
     version: 1,
     roi: DEFAULT_ROI,

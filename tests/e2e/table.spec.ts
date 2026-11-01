@@ -106,3 +106,34 @@ test('remote seat switches between avatar and capture crop', async ({ page }) =>
   await page.getByRole('button', { name: 'Ir para a mesa' }).click()
   await expect(remote.locator('canvas')).toHaveCount(1)
 })
+
+test('every zoom handle is reachable and dragging it zooms that player only', async ({ page }) => {
+  await startSynthetic(page)
+  await page.getByRole('button', { name: 'Próximo: jogadores' }).click()
+
+  // Default frames (no "Distribuir"): the handle must be the topmost element.
+  for (const id of ['p1', 'p2', 'p3', 'p4', 'p5']) {
+    const handle = page.locator(`[data-handle="zoom-${id}"]`)
+    const b = await handle.boundingBox()
+    if (!b) throw new Error(`no handle for ${id}`)
+    const hit = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x ?? 0, y ?? 0)?.getAttribute('data-handle'),
+      [b.x + b.width / 2, b.y + b.height / 2],
+    )
+    expect(hit).toBe(`zoom-${id}`)
+  }
+
+  const p1 = page.getByTestId('crop-p1')
+  const p2 = page.getByTestId('crop-p2')
+  const p1Before = await p1.boundingBox()
+  const p2Before = await p2.boundingBox()
+  const h = await page.locator('[data-handle="zoom-p1"]').boundingBox()
+  if (!h) throw new Error('no handle')
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(h.x + h.width / 2 + 10, h.y + h.height / 2 + 40, { steps: 5 })
+  await page.mouse.up()
+
+  expect((await p1.boundingBox())?.height ?? 0).toBeGreaterThan((p1Before?.height ?? 0) + 20)
+  expect(await p2.boundingBox()).toEqual(p2Before)
+})

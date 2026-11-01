@@ -87,6 +87,7 @@ A automação não reproduz o seletor de janela do navegador, então este roteir
 3. Preencha nomes e personagens. No 6º card, escolha **Recorte da captura** e posicione a moldura tracejada sobre o seu próprio vídeo no Meet, se ele aparecer.
 4. Clique em **Ir para a mesa**:
    - [ ] Cinco retratos ao vivo, sem deformação, e o card "Remoto".
+   - [ ] Os retratos **continuam se mexendo** depois de 1 minuto na mesa. O vídeo da fonte fica oculto nessa tela, e isso só pode ser confirmado no navegador real.
    - [ ] Tudo cabe na tela em 1080p.
 5. Recarregue a página e capture o Meet de novo:
    - [ ] Abre direto na mesa, com os nomes mantidos.
