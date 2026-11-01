@@ -8,14 +8,14 @@ import type { Size } from './roi'
  * the element never keeps a reference to a released stream.
  */
 export function useAttachedVideo(
-  media: AttachedMedia,
+  media: AttachedMedia | null,
 ): [HTMLVideoElement | null, RefCallback<HTMLVideoElement>] {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
 
   const ref = useCallback(
     (element: HTMLVideoElement | null) => {
       setVideo(element)
-      if (!element) return
+      if (!element || !media) return
       // The audio stays in the Meet; this element must never make sound.
       element.muted = true
       if (media.kind === 'stream') {

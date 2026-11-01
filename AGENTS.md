@@ -11,7 +11,7 @@ Regras para qualquer agente (Claude, GPT/Codex) que trabalhe neste repositório.
 ## Verificação obrigatória antes de entregar
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build
+npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run build
 ```
 
 Relate o que rodou e o resultado real. **Não marque como aprovado o que não foi testado.** A captura real (`getDisplayMedia`) exige o smoke test manual descrito no README; a automação não simula o seletor.
