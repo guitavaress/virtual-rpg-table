@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { CaptureController } from './captureController'
+import { CaptureSession } from './captureSession'
 import type { CaptureState, VideoSource } from './types'
 
 export interface UseCapture {
@@ -8,9 +8,9 @@ export interface UseCapture {
   stop(): void
 }
 
-/** Binds a CaptureController to a component; stops capture on unmount. */
+/** Binds a CaptureSession to a component; stops capture on unmount. */
 export function useCapture(): UseCapture {
-  const [controller] = useState(() => new CaptureController())
+  const [controller] = useState(() => new CaptureSession())
   const state = useSyncExternalStore(controller.subscribe, controller.getState)
 
   useEffect(() => () => controller.stop(), [controller])

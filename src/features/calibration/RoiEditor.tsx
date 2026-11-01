@@ -4,6 +4,8 @@ import { HANDLES, moveRect, resizeRect, type Handle, type NormRect, type Rect } 
 const KEY_STEP = 0.01
 const KEY_STEP_FINE = 0.002
 
+const pct = (value: number): string => `${Math.round(value * 100)}%`
+
 const HANDLE_POSITION: Record<Handle, string> = {
   nw: 'left-0 top-0 cursor-nwse-resize',
   n: 'left-1/2 top-0 cursor-ns-resize',
@@ -92,7 +94,7 @@ export function RoiEditor({ display, roi, onChange }: RoiEditorProps) {
       <div
         role="group"
         tabIndex={0}
-        aria-label="Região da câmera coletiva. Setas movem; Shift + setas redimensionam; Alt deixa o passo fino."
+        aria-label={`Região da câmera coletiva: começa em ${pct(roi.x)} da esquerda e ${pct(roi.y)} do topo, com ${pct(roi.width)} de largura e ${pct(roi.height)} de altura. Setas movem; Shift + setas redimensionam; Alt deixa o passo fino.`}
         data-testid="roi-box"
         className="pointer-events-auto absolute cursor-move touch-none border-2 border-amber-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] outline-none focus-visible:ring-4 focus-visible:ring-amber-300/60"
         style={{

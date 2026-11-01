@@ -121,9 +121,19 @@ function StatusMessage({ state }: { state: CaptureState }) {
     )
   }
 
+  // Errors and "ended" are inserted as a fresh role="alert" so screen readers
+  // announce them even when this screen mounts with the message already set.
+  const urgent = state.status === 'ended' || state.status === 'error'
   return (
-    <p role="status" aria-live="polite" className={`min-h-12 text-sm ${tone}`}>
-      {content}
-    </p>
+    <div className="min-h-12 text-sm">
+      <p role="status" aria-live="polite" className={tone}>
+        {urgent ? null : content}
+      </p>
+      {urgent && (
+        <p role="alert" className={tone}>
+          {content}
+        </p>
+      )}
+    </div>
   )
 }

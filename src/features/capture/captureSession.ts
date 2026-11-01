@@ -12,7 +12,7 @@ type Listener = (state: CaptureState) => void
  *   released immediately: a generation counter marks it as stale.
  * - Every exit path (stop, switch, browser "Stop sharing", failure) releases tracks.
  */
-export class CaptureController {
+export class CaptureSession {
   private state: CaptureState = { status: 'idle' }
   private current: VideoSource | null = null
   private unsubscribeEnded: (() => void) | null = null

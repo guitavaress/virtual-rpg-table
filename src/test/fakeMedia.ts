@@ -50,7 +50,7 @@ export class FakeStream {
   }
 
   get allStopped(): boolean {
-    return this.tracks.every((t) => t.stopCalls > 0)
+    return this.tracks.length > 0 && this.tracks.every((t) => t.stopCalls > 0)
   }
 }
 

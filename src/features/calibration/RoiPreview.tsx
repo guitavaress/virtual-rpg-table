@@ -19,23 +19,26 @@ export function RoiPreview({ video, roi }: RoiPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const roiRef = useRef(roi)
   const meter = useRef(new FpsMeter())
-  const lastStats = useRef(0)
   const [fps, setFps] = useState(0)
 
   useEffect(() => {
     roiRef.current = roi
   }, [roi])
 
+  // Polled on its own clock: if the source freezes no frame callback fires, and
+  // the reading must drop to 0 instead of showing the last value forever.
+  useEffect(() => {
+    const timer = setInterval(() => setFps(meter.current.fps(performance.now())), STATS_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [])
+
   const draw = useCallback(
     (now: number) => {
       const canvas = canvasRef.current
       if (!canvas || !video || video.videoWidth === 0 || video.videoHeight === 0) return
 
+      // rVFC `now` shares the performance.now() timeline used by the poller.
       meter.current.tick(now)
-      if (now - lastStats.current >= STATS_INTERVAL_MS) {
-        lastStats.current = now
-        setFps(meter.current.fps(now))
-      }
 
       const src = normToVideoPixels(roiRef.current, {
         width: video.videoWidth,
@@ -61,6 +64,7 @@ export function RoiPreview({ video, roi }: RoiPreviewProps) {
     <figure className="flex flex-col gap-2">
       <canvas
         ref={canvasRef}
+        role="img"
         aria-label="Prévia da região selecionada"
         className="h-auto max-h-[50vh] w-full rounded-lg bg-black object-contain"
       />

@@ -6,17 +6,17 @@ import {
   FakeStream,
   FakeTrack,
 } from '../../test/fakeMedia'
-import { CaptureController } from './captureController'
+import { CaptureSession } from './captureSession'
 import { CapturedDisplaySource, DISPLAY_MEDIA_OPTIONS } from './displaySource'
 
 function setup() {
-  const controller = new CaptureController()
+  const controller = new CaptureSession()
   const fake = controllableProvider()
   const newSource = () => new CapturedDisplaySource(fake.provider)
   return { controller, fake, newSource }
 }
 
-describe('CaptureController with display sources', () => {
+describe('CaptureSession with display sources', () => {
   it('goes requesting → active and asks for video only', async () => {
     const { controller, fake, newSource } = setup()
     const states: string[] = []
@@ -51,7 +51,7 @@ describe('CaptureController with display sources', () => {
   })
 
   it('reports unsupported when the API is missing', async () => {
-    const controller = new CaptureController()
+    const controller = new CaptureSession()
     await controller.start(new CapturedDisplaySource(undefined))
     expect(controller.getState()).toMatchObject({ status: 'error', error: { code: 'unsupported' } })
   })
@@ -152,5 +152,31 @@ describe('CaptureController with display sources', () => {
     await done
     expect(audio.stopCalls).toBe(1)
     expect(stream.getAudioTracks()).toHaveLength(0)
+  })
+})
+
+describe('CaptureSession edge cases', () => {
+  it('treats a stream whose video track is already ended as unavailable', async () => {
+    const session = new CaptureSession()
+    const fake = controllableProvider()
+    const track = new FakeTrack()
+    track.readyState = 'ended'
+    const done = session.start(new CapturedDisplaySource(fake.provider))
+    fake.calls[0]?.resolve(asMediaStream(new FakeStream([track])))
+    await done
+    expect(session.getState()).toMatchObject({
+      status: 'error',
+      error: { code: 'source-unavailable' },
+    })
+    expect(track.stopCalls).toBeGreaterThan(0)
+  })
+
+  it('treats a stream without video tracks as unavailable', async () => {
+    const session = new CaptureSession()
+    const fake = controllableProvider()
+    const done = session.start(new CapturedDisplaySource(fake.provider))
+    fake.calls[0]?.resolve(asMediaStream(new FakeStream([])))
+    await done
+    expect(session.getState()).toMatchObject({ status: 'error' })
   })
 })

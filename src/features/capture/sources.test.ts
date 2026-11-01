@@ -8,7 +8,7 @@ describe('toCaptureError', () => {
     ['NotAllowedError', 'denied-or-cancelled'],
     ['InvalidStateError', 'no-user-gesture'],
     ['NotSupportedError', 'unsupported'],
-    ['TypeError', 'unsupported'],
+    ['TypeError', 'unknown'],
     ['NotFoundError', 'source-unavailable'],
     ['NotReadableError', 'source-unavailable'],
     ['AbortError', 'source-unavailable'],
@@ -19,7 +19,10 @@ describe('toCaptureError', () => {
 
   it('handles non-Error values', () => {
     expect(toCaptureError('boom')).toEqual({ code: 'unknown', detail: 'UnknownError: boom' })
-    expect(toCaptureError(new TypeError('bad')).code).toBe('unsupported')
+    expect(toCaptureError(new TypeError('bad'))).toEqual({
+      code: 'unknown',
+      detail: 'TypeError: bad',
+    })
   })
 })
 

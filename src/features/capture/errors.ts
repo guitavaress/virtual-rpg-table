@@ -21,7 +21,6 @@ const CODE_BY_NAME: Readonly<Record<string, CaptureErrorCode>> = {
   // Thrown when getDisplayMedia is not called from a user gesture.
   InvalidStateError: 'no-user-gesture',
   NotSupportedError: 'unsupported',
-  TypeError: 'unsupported',
   NotFoundError: 'source-unavailable',
   NotReadableError: 'source-unavailable',
   AbortError: 'source-unavailable',
