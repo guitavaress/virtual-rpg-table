@@ -60,6 +60,7 @@ A automação não reproduz o seletor de janela do navegador, então este roteir
    - [ ] Não há opção de compartilhar áudio.
 3. Escolha a **aba** do Meet:
    - [ ] Aparece o vídeo, com resolução e FPS no painel.
+   - Observação: o Chrome pode trocar o foco para a aba do Meet ao compartilhar. Volte para a aba do app para calibrar.
 4. Arraste e redimensione a moldura:
    - [ ] A prévia acompanha a moldura.
    - [ ] Setas e Shift+setas funcionam.

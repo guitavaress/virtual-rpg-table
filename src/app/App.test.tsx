@@ -1,4 +1,5 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render as rtlRender, screen } from '@testing-library/react'
+import { StrictMode, type ReactElement } from 'react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asMediaStream, domError, FakeStream, FakeTrack } from '../test/fakeMedia'
@@ -12,6 +13,9 @@ function mockDisplayMedia(impl: () => Promise<MediaStream>) {
   })
   return getDisplayMedia
 }
+
+// Same as main.tsx: effects and ref callbacks run twice in development.
+const render = (ui: ReactElement) => rtlRender(<StrictMode>{ui}</StrictMode>)
 
 afterEach(() => {
   Reflect.deleteProperty(navigator, 'mediaDevices')

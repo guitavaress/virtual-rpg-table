@@ -35,7 +35,7 @@ Formato: contexto → decisão → consequência. Entradas mais novas no fim.
 
 ## D-007 — Trocar fonte encerra a anterior antes de pedir a nova (2026-11-01)
 
-- **Decisão:** `CaptureController.start()` libera a fonte atual antes de abrir o seletor.
+- **Decisão:** `CaptureSession.start()` libera a fonte atual antes de abrir o seletor.
 - **Consequência:** se o usuário cancelar o seletor durante a troca, o app volta ao setup com a mensagem de cancelamento, e a ROI é mantida. É mais simples e não há chance de duas capturas simultâneas. Pode ser revisto depois do piloto.
 
 ## D-008 — Jev (TypeSafe AI) fora do runtime (2026-11-01)
@@ -43,3 +43,14 @@ Formato: contexto → decisão → consequência. Entradas mais novas no fim.
 - **Contexto:** o Jev é um modelo de decisões tipadas (sim/não, escolha, nota, caixa em imagem) acessado por API na nuvem.
 - **Decisão:** ele **não** entra no app, porque enviar frames da chamada viola a regra de processamento local sem upload. Fica como candidato para a F2/F4 como **avaliador offline de desenvolvimento**: um script em `scripts/` que dá nota à qualidade dos crops do auto-framing em vídeo de teste consentido.
 - **Regra de segredos:** a chave fica numa variável de ambiente lida só por scripts Node. Nunca usar o prefixo `VITE_`, porque o Vite injeta essas variáveis no bundle público. Nunca versionar a chave.
+
+## D-009 — Revisão da F0 feita por Opus, como exceção (2026-11-01)
+
+- **Contexto:** o limite de uso do Codex estourou durante a revisão da F0.
+- **Decisão:** o product owner autorizou, como exceção, que a revisão independente fosse feita por um agente Claude Opus em esforço alto, com o mesmo prompt de revisão do `AGENTS.md`, sem acesso de escrita e sem ter participado da implementação.
+- **Consequência:** a revisão é menos independente do que com outro fornecedor. Nas próximas fases o revisor volta a ser o GPT/Codex.
+
+## D-010 — `CaptureController` da especificação passa a se chamar `CaptureSession` (2026-11-01)
+
+- **Contexto:** `CaptureController` é também o nome de um global nativo do navegador. Ele é usado, por exemplo, em `setFocusBehavior`, que impede o Chrome de trocar o foco para a aba capturada.
+- **Decisão:** a classe do app se chama `CaptureSession`. A especificação original continua citando `CaptureController` e não foi alterada.

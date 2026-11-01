@@ -34,6 +34,12 @@ export class StreamOwnership {
     }
   }
 
+  /** True when the stream has no live video track (e.g. the tab closed while the picker was open). */
+  get isDead(): boolean {
+    const video = this.stream?.getVideoTracks() ?? []
+    return video.length === 0 || video.some((track) => track.readyState === 'ended')
+  }
+
   onEnded(callback: () => void): () => void {
     return this.ended.on(callback)
   }
