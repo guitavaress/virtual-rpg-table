@@ -185,7 +185,7 @@ São duas peças, numa conta Cloudflare só:
    A partir daqui, cada merge na `main` republica o Worker sozinho.
 
 7. **Conferir:**
-   - `curl https://vrt-signal.<seu-subdominio>.workers.dev/api/health` deve responder `{"ok":true}`;
+   - `curl https://vrt-signal.gui-tavares-moreira.workers.dev/api/health` deve responder `{"ok":true}`;
    - o site abre em HTTPS no endereço do Pages.
 
 ### Ativar o TURN (decidir antes da W3)
