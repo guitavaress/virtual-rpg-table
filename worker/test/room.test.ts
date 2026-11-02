@@ -7,6 +7,7 @@ import {
   ROOM_IDLE_MS,
   type SignalRoom,
 } from '../src/signalRoom'
+import worker from '../src/index'
 import { generateRoomToken } from '../src/token'
 
 const ORIGIN = 'https://app.test'
@@ -418,5 +419,23 @@ describe('credenciais TURN', () => {
     const response = await turn(token)
     expect(response.status).toBe(502)
     expect(await response.json()).toEqual({ error: 'turn-upstream' })
+  })
+
+  it('sem secrets TURN (estado da produção na W1), responde 503 sem tocar na sala', async () => {
+    const spy = mockCloudflare()
+    const { token } = await createRoom()
+    await connect(token, 'sender')
+    const withoutTurn: Env = { ALLOWED_ORIGINS: env.ALLOWED_ORIGINS, SIGNAL_ROOM: env.SIGNAL_ROOM }
+    const request = new Request(`${BASE}/api/turn`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+
+    const response = await worker.fetch(request, withoutTurn)
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'turn-not-configured' })
+    expect(spy).not.toHaveBeenCalled()
+    expect((await readMeta(token))?.turnIssued).toBe(0)
   })
 })

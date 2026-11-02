@@ -150,11 +150,11 @@ São duas peças, numa conta Cloudflare só:
 
 **Onde fica cada segredo.** Nenhum vai para arquivo versionado nem leva o prefixo `VITE_` (o Vite embute essas variáveis no bundle público).
 
-| Segredo                             | Fica em                                 | Para quê                                    |
-| ----------------------------------- | --------------------------------------- | ------------------------------------------- |
-| `TURN_KEY_ID`, `TURN_KEY_API_TOKEN` | Secrets do Worker, na Cloudflare        | O Worker pede credenciais TURN curtas (4 h) |
-| `CLOUDFLARE_API_TOKEN`              | Secret do repositório no GitHub Actions | O CI publica o Worker                       |
-| `CLOUDFLARE_ACCOUNT_ID`             | Secret do repositório no GitHub Actions | Idem (não é sigiloso, mas fica junto)       |
+| Segredo                             | Fica em                                 | Para quê                                                                                   |
+| ----------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `TURN_KEY_ID`, `TURN_KEY_API_TOKEN` | Secrets do Worker, na Cloudflare        | **Opcionais, ainda não configurados (D-020).** O Worker pede credenciais TURN curtas (4 h) |
+| `CLOUDFLARE_API_TOKEN`              | Secret do repositório no GitHub Actions | O CI publica o Worker                                                                      |
+| `CLOUDFLARE_ACCOUNT_ID`             | Secret do repositório no GitHub Actions | Idem (não é sigiloso, mas fica junto)                                                      |
 
 ### Primeira configuração (uma vez)
 
@@ -168,10 +168,10 @@ São duas peças, numa conta Cloudflare só:
    A versão do Node vem do arquivo `.node-version`.
 
 2. **Origens.** Se o endereço do Pages saiu diferente, troque `ALLOWED_ORIGINS` em `worker/wrangler.toml` (o endereço exato e o `https://*.` das prévias) e rode `npm run types --prefix worker`.
-3. **Token de API.** Vá em **My Profile → API Tokens → Create Token** e use o modelo **Edit Cloudflare Workers**. Em Account Resources, escolha só a sua conta. O token aparece uma vez só: guarde até o passo 4.
+3. **Token de API.** Vá em **My Profile → API Tokens → Create Token** e use o modelo **Edit Cloudflare Workers**. Deixe a conta como **Entire account**; as zonas ficam em **All zones** (sem domínio próprio, isso não dá acesso a nada). O token aparece uma vez só: guarde fora do repositório até o passo 6.
 4. **Secrets do GitHub.** No repositório, vá em **Settings → Secrets and variables → Actions → New repository secret** e cadastre `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`. O Account ID aparece na página inicial da conta, em **Account details**.
-5. **Chave TURN.** Vá em **Realtime → TURN Server → Create** (nome: `vrt-turn`). Guarde o **Turn Token ID** e o **API Token**.
-6. **Primeiro deploy do Worker e secrets TURN.** Rode isto num terminal WSL seu, **não** colado em chat:
+5. **Chave TURN:** fica **pendente** (D-020). Ativar o Realtime exige cadastrar cartão ou PayPal, mesmo dentro da franquia grátis. Veja "Ativar o TURN" abaixo.
+6. **Primeiro deploy do Worker.** Rode isto num terminal WSL seu, **não** colado em chat:
 
    ```bash
    cd ~/virtual-rpg-table/worker
@@ -179,16 +179,28 @@ São duas peças, numa conta Cloudflare só:
    read -rs CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN   # cole o token (não aparece)
    read -r CLOUDFLARE_ACCOUNT_ID && export CLOUDFLARE_ACCOUNT_ID  # cole o Account ID
    npx wrangler deploy
-   npx wrangler secret put TURN_KEY_ID         # cole o Turn Token ID
-   npx wrangler secret put TURN_KEY_API_TOKEN  # cole o API Token da TURN
    unset CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
    ```
 
-   A partir daqui, cada merge na `main` republica o Worker sozinho. O `wrangler deploy` não apaga os secrets.
+   A partir daqui, cada merge na `main` republica o Worker sozinho.
 
 7. **Conferir:**
    - `curl https://vrt-signal.<seu-subdominio>.workers.dev/api/health` deve responder `{"ok":true}`;
    - o site abre em HTTPS no endereço do Pages.
+
+### Ativar o TURN (decidir antes da W3)
+
+1. No painel, vá em **Realtime**. Cadastre o meio de pagamento: o total é US$ 0,00 agora, a cobrança só acontece acima de 1.000 GB/mês, e a assinatura pode ser cancelada em **Billing → Subscriptions**.
+2. Crie um alerta de cobrança em **Manage Account → Billing → Notifications**.
+3. Vá em **TURN Server → Create** (nome: `vrt-turn`) e guarde o **Turn Token ID** e o **API Token**.
+4. No seu terminal, com o token de API exportado como no passo 6, rode:
+
+   ```bash
+   npx wrangler secret put TURN_KEY_ID         # cole o Turn Token ID
+   npx wrangler secret put TURN_KEY_API_TOKEN  # cole o API Token da TURN
+   ```
+
+   O `wrangler deploy` não apaga os secrets. Não declare esses secrets em `[secrets].required` no `wrangler.toml`: com eles obrigatórios, o deploy falha enquanto não existirem.
 
 ### Rotina e manutenção
 

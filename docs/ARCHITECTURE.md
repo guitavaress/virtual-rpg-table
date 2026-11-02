@@ -99,15 +99,15 @@ Pacote separado, com `package.json` e lockfile próprios. Os tipos do runtime da
    └── só depois do "ok" do DO ──► API TURN da Cloudflare (chave em secret) → iceServers de 4 h
 ```
 
-| Caminho                    | Responsabilidade                                                                   |
-| -------------------------- | ---------------------------------------------------------------------------------- |
-| `worker/src/index.ts`      | Rotas, checagem de origem, CORS, `no-store`                                        |
-| `worker/src/signalRoom.ts` | Durable Object: criar, vaga por papel, repasse, aviso de entrada/saída, alarme     |
-| `worker/src/protocol.ts`   | Papéis, subprotocolo, mensagem repassável, códigos de fechamento (funções puras)   |
-| `worker/src/token.ts`      | Token de 128 bits (base64url) e validação da forma                                 |
-| `worker/src/origin.ts`     | `ALLOWED_ORIGINS` (exata ou `https://*.dominio`)                                   |
-| `worker/src/turn.ts`       | Chamada à API TURN, validação da resposta, remoção da porta 53                     |
-| `worker/wrangler.toml`     | Binding do DO, migração SQLite, origens, nomes (não valores) dos secrets, logs off |
+| Caminho                    | Responsabilidade                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `worker/src/index.ts`      | Rotas, checagem de origem, CORS, `no-store`                                                |
+| `worker/src/signalRoom.ts` | Durable Object: criar, vaga por papel, repasse, aviso de entrada/saída, alarme             |
+| `worker/src/protocol.ts`   | Papéis, subprotocolo, mensagem repassável, códigos de fechamento (funções puras)           |
+| `worker/src/token.ts`      | Token de 128 bits (base64url) e validação da forma                                         |
+| `worker/src/origin.ts`     | `ALLOWED_ORIGINS` (exata ou `https://*.dominio`)                                           |
+| `worker/src/turn.ts`       | Chamada à API TURN, validação da resposta, remoção da porta 53                             |
+| `worker/wrangler.toml`     | Binding do DO, migração SQLite, origens, logs off (secrets TURN opcionais: `src/env.d.ts`) |
 
 ## Invariantes da W1
 
@@ -115,4 +115,4 @@ Pacote separado, com `package.json` e lockfile próprios. Os tipos do runtime da
 - Uma vaga por papel (`sender`, `receiver`). Como só há dois papéis, um terceiro peer é sempre recusado (409).
 - A sala expira 2 h depois de ficar sem peers. O alarme reagenda enquanto há alguém conectado e apaga tudo (`deleteAll`) quando vence.
 - O DO guarda só `expiresAt` e o contador de TURN. SDP e ICE são repassados sem ser guardados nem registrados. Logs do Worker estão desligados.
-- A chave TURN só existe no Worker. O navegador recebe username/credential temporários, e só se a sala tiver um peer conectado (no máximo 20 por sala).
+- A chave TURN só existe no Worker. O navegador recebe username/credential temporários, e só se a sala tiver um peer conectado (no máximo 20 por sala). Sem os secrets (estado atual, D-020), a rota responde 503 sem acordar a sala.

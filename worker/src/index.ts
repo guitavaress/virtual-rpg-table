@@ -62,13 +62,15 @@ async function connect(request: Request, url: URL, env: Env, cors: string): Prom
 async function issueTurn(request: Request, env: Env, cors: string): Promise<Response> {
   const token = await tokenFromBody(request)
   if (!token) return json({ error: 'token' }, 400, cors)
+  // Sem TURN configurado (D-020), nem acorda a sala nem gasta o contador dela.
+  const secrets = readTurnSecrets(env)
+  if (!secrets) return json({ error: 'turn-not-configured' }, 503, cors)
+
   const authorization = await roomStub(env, token).authorizeTurn()
   if (authorization === 'not-found') return json({ error: 'not-found' }, 404, cors)
   if (authorization === 'no-peer') return json({ error: 'no-peer' }, 403, cors)
   if (authorization === 'limit') return json({ error: 'limit' }, 429, cors)
 
-  const secrets = readTurnSecrets(env)
-  if (!secrets) return json({ error: 'turn-not-configured' }, 503, cors)
   const result = await generateIceServers(secrets)
   if (!result.ok) return json({ error: 'turn-upstream' }, 502, cors)
   return json({ iceServers: result.iceServers, ttlSeconds: TURN_TTL_SECONDS }, 200, cors)

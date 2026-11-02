@@ -1,6 +1,7 @@
 # Worker de sinalização da câmera direta (F1.5). Ver docs/tasks/F1.5.md e D-017/D-018.
-# Secrets (NUNCA neste arquivo): TURN_KEY_ID e TURN_KEY_API_TOKEN, cadastrados no
-# painel da Cloudflare (Worker → Settings → Variables and Secrets, tipo "Secret").
+# Secrets OPCIONAIS (NUNCA neste arquivo): TURN_KEY_ID e TURN_KEY_API_TOKEN, via
+# `wrangler secret put`. Sem eles, /api/turn responde 503 (D-020). Não use [secrets].required:
+# o deploy de um Worker novo falha se os secrets obrigatórios ainda não existirem.
 name = "vrt-signal"
 main = "src/index.ts"
 compatibility_date = "2026-10-28"
@@ -19,10 +20,6 @@ enabled = false
 # Origens que podem criar sala, conectar e pedir TURN. Separadas por vírgula.
 # "https://*.dominio" aceita subdomínios (deploys de preview do Pages).
 ALLOWED_ORIGINS = "https://virtual-rpg-table.pages.dev,https://*.virtual-rpg-table.pages.dev"
-
-# Só os NOMES. Os valores ficam no painel da Cloudflare, nunca no repositório.
-[secrets]
-required = ["TURN_KEY_ID", "TURN_KEY_API_TOKEN"]
 
 [[durable_objects.bindings]]
 name = "SIGNAL_ROOM"

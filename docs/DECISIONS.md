@@ -130,3 +130,11 @@ Fonte: páginas oficiais da Cloudflare, lidas em 2026-11-01. A data de atualiza�
   - uma sessão gasta poucas dezenas de requisições (criar sala, 2 conexões e algumas mensagens), muito longe das 100.000/dia;
   - o relay só entra quando o P2P falha. A 1080p (≈ 4 Mbps) são ≈ 1,8 GB/h por perna relayada, ou até ≈ 3,6 GB/h se os dois lados usarem TURN. Isso dá ≥ 275 h de relay por mês dentro da franquia;
   - D-017 continua valendo.
+
+## D-020 — TURN adiado para antes da W3 (2026-11-01)
+
+- **Contexto:** para ativar o Cloudflare Realtime (TURN), o painel exige cadastrar cartão ou PayPal, mesmo com US$ 0,00 devido e 1.000 GB/mês grátis. A Cloudflare oferece alerta de uso, não um teto que corta o serviço.
+- **Decisão (PO):** não cadastrar o meio de pagamento agora. A W1 publica o Worker sem os secrets TURN, e a rota `/api/turn` responde **503 `turn-not-configured`**. Ela checa os secrets antes de acordar a sala e não gasta o contador. A W2 usa só STUN, que é grátis.
+- **Consequência:**
+  - os secrets TURN viraram **opcionais**. Saíram de `[secrets].required` no `wrangler.toml`, porque o wrangler 4.156 recusa o primeiro deploy de um Worker sem os secrets obrigatórios, e foram tipados como `string | undefined` em `worker/src/env.d.ts`;
+  - antes da W3, o PO decide entre ativar o TURN (README → "Ativar o TURN") e aceitar que redes que bloqueiam P2P não conectam.
