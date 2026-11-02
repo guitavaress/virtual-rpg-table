@@ -104,6 +104,22 @@ Anote para cada combinação:
 
 Se aparecer "A câmera está em uso por outro programa", é o `NotReadableError`: no Windows, programas (e às vezes navegadores) diferentes não compartilham a webcam. Esse resultado também vale como dado do gate.
 
+### Sua webcam no card Remoto (F1.5)
+
+O card "Remoto" pode usar a sua webcam, ao mesmo tempo que a captura do Meet alimenta os 5 retratos. São duas fontes independentes.
+
+1. Capture a aba do Meet e vá em **Próximo: jogadores**.
+2. No quadro "Jogador remoto (você)", escolha **Minha webcam**, clique em **Permitir e listar câmeras**, escolha a câmera e clique em **Ligar minha webcam**.
+   - [ ] A prévia "Sua webcam" aparece e a moldura tracejada se arrasta sobre o seu rosto.
+   - [ ] A resolução entregue aparece embaixo da prévia.
+3. Clique em **Ir para a mesa**:
+   - [ ] Os 5 retratos vêm do Meet e o card Remoto vem da sua webcam, os dois ao vivo.
+   - [ ] O Meet continua mostrando o seu vídeo (use o MESMO navegador do Meet).
+4. Desligue a webcam pelo sistema (ou desconecte-a):
+   - [ ] Só o card Remoto fica em "Fonte perdida", com o botão **Reconectar webcam**. Os 5 retratos continuam.
+5. Clique em **Parar captura**:
+   - [ ] A luz da webcam apaga e o indicador de compartilhamento some.
+
 ### Mesa (F1)
 
 1. Com a aba do Meet capturada, ajuste a moldura da câmera coletiva e clique em **Próximo: jogadores**.

@@ -16,15 +16,26 @@ import {
   type RemoteSlot,
   type TableConfig,
 } from '../../features/table/model'
+import type { CameraOptions } from '../../features/capture/localCameraSource'
+import type { CaptureState } from '../../features/capture/types'
+import { CameraPicker } from '../CaptureSetup/CameraPicker'
+import { describeCaptureError } from '../CaptureSetup/messages'
 import { buttonSecondary, inputText } from '../ui'
 
 type SlotPatch = Partial<Pick<PlayerSlot, 'name' | 'character' | 'crop'>>
-type RemotePatch = Partial<Pick<RemoteSlot, 'name' | 'character' | 'crop' | 'mode'>>
+type RemotePatch = Partial<Pick<RemoteSlot, 'name' | 'character' | 'crop' | 'webcamCrop' | 'mode'>>
 
 export interface PlayersPanelProps {
   config: TableConfig
   video: Size
   canvasRef(id: string): RefCallback<HTMLCanvasElement>
+  /** Thumbnail canvas for the remote seat (comes from the webcam or the capture). */
+  remoteCanvasRef: RefCallback<HTMLCanvasElement> | undefined
+  /** The remote seat's own source (this computer's webcam). */
+  webcam: CaptureState
+  webcamSize: Size
+  onStartWebcam(options: CameraOptions): void
+  onStopWebcam(): void
   onPlayerChange(id: PlayerId, patch: SlotPatch): void
   onRemoteChange(patch: RemotePatch): void
   onDistribute(): void
@@ -35,6 +46,11 @@ export function PlayersPanel({
   config,
   video,
   canvasRef,
+  remoteCanvasRef,
+  webcam,
+  webcamSize,
+  onStartWebcam,
+  onStopWebcam,
   onPlayerChange,
   onRemoteChange,
   onDistribute,
@@ -44,6 +60,10 @@ export function PlayersPanel({
   const maxRoiSize = roiPx ? maxPortraitSize(roiPx) : 1
   const maxFrameSize = framePx ? maxPortraitSize(framePx) : 1
   const remote = config.remote
+  const webcamPx = regionPixels(FULL_FRAME, webcamSize)
+  const maxWebcamSize = webcamPx ? maxPortraitSize(webcamPx) : 1
+  const sizeable = remote.mode !== 'avatar'
+  const remoteCrop = remote.mode === 'webcam' ? remote.webcamCrop : remote.crop
 
   return (
     <div className="flex flex-col gap-3">
@@ -81,7 +101,16 @@ export function PlayersPanel({
 
       <fieldset className="flex flex-col gap-2 rounded-lg border border-teal-800/60 p-2">
         <legend className="px-1 text-xs font-semibold text-teal-300">Jogador remoto (você)</legend>
-        <div className="flex gap-3 text-sm text-stone-300">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-stone-300">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="radio"
+              name="remote-mode"
+              checked={remote.mode === 'webcam'}
+              onChange={() => onRemoteChange({ mode: 'webcam' })}
+            />
+            Minha webcam
+          </label>
           <label className="flex items-center gap-1.5">
             <input
               type="radio"
@@ -107,20 +136,30 @@ export function PlayersPanel({
           color={PLAYER_COLORS.remote}
           name={remote.name}
           character={remote.character}
-          size={remote.crop.size}
-          maxSize={maxFrameSize}
-          canvasRef={remote.mode === 'crop' ? canvasRef('remote') : undefined}
+          size={remoteCrop.size}
+          maxSize={remote.mode === 'webcam' ? maxWebcamSize : maxFrameSize}
+          canvasRef={remoteCanvasRef}
           onName={(name) => onRemoteChange({ name })}
           onCharacter={(character) => onRemoteChange({ character })}
           onSize={
-            remote.mode === 'crop'
+            sizeable
               ? (size) => {
-                  const crop = { ...remote.crop, size }
-                  onRemoteChange({ crop: framePx ? clampPortrait(crop, framePx) : crop })
+                  if (remote.mode === 'webcam') {
+                    const crop = { ...remote.webcamCrop, size }
+                    onRemoteChange({
+                      webcamCrop: webcamPx ? clampPortrait(crop, webcamPx) : crop,
+                    })
+                  } else {
+                    const crop = { ...remote.crop, size }
+                    onRemoteChange({ crop: framePx ? clampPortrait(crop, framePx) : crop })
+                  }
                 }
               : undefined
           }
         />
+        {remote.mode === 'webcam' && (
+          <WebcamControls webcam={webcam} onStart={onStartWebcam} onStop={onStopWebcam} />
+        )}
         {remote.mode === 'crop' && (
           <p className="text-xs text-stone-500">
             Posicione a moldura tracejada sobre o seu próprio vídeo no Meet, se ele aparecer na
@@ -128,6 +167,53 @@ export function PlayersPanel({
           </p>
         )}
       </fieldset>
+    </div>
+  )
+}
+
+function WebcamControls({
+  webcam,
+  onStart,
+  onStop,
+}: {
+  webcam: CaptureState
+  onStart(options: CameraOptions): void
+  onStop(): void
+}) {
+  if (webcam.status === 'active') {
+    return (
+      <div className="flex flex-col gap-2 text-xs text-stone-400">
+        <p>
+          Webcam ligada: <span data-testid="webcam-label">{webcam.label}</span>. Posicione a moldura
+          sobre o seu rosto na prévia abaixo.
+        </p>
+        <button type="button" onClick={onStop} className={`${buttonSecondary} self-start`}>
+          Desligar webcam
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-stone-500">
+        A mesma webcam que você manda para o Meet. Abra este app no mesmo navegador do Meet.
+      </p>
+      <CameraPicker
+        busy={webcam.status === 'requesting'}
+        onStart={onStart}
+        grantLabel="Permitir e listar câmeras"
+        startLabel="Ligar minha webcam"
+      />
+      {webcam.status === 'error' && (
+        <p role="alert" className="text-sm text-red-300">
+          {describeCaptureError('camera', webcam.error)}
+        </p>
+      )}
+      {webcam.status === 'ended' && (
+        <p role="alert" className="text-sm text-amber-200">
+          A webcam foi desconectada ou liberada. Ligue de novo.
+        </p>
+      )}
     </div>
   )
 }

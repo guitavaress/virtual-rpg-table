@@ -354,3 +354,115 @@ describe('App camera source (F1.5 W0)', () => {
     expect(screen.getByRole('button', { name: 'Câmera deste computador' })).toBeEnabled()
   })
 })
+
+describe('App remote seat on this computer’s webcam (second source)', () => {
+  /** Meet capture via getDisplayMedia + webcam via getUserMedia, each its own stream. */
+  function mockBoth() {
+    const meetTrack = new FakeTrack('video', 'Meet - sala')
+    const meet = new FakeStream([meetTrack])
+    const webcamTrack = new FakeTrack('video', 'Minha webcam')
+    webcamTrack.settings = { width: 1280, height: 720, frameRate: 30 }
+    const webcamStreams: FakeStream[] = []
+    let granted = false
+    const getUserMedia = vi.fn<(c?: MediaStreamConstraints) => Promise<MediaStream>>((c) => {
+      granted = true
+      const stream = new FakeStream(c?.video === true ? [new FakeTrack('video')] : [webcamTrack])
+      webcamStreams.push(stream)
+      return Promise.resolve(asMediaStream(stream))
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getDisplayMedia: vi.fn<() => Promise<MediaStream>>(() =>
+          Promise.resolve(asMediaStream(meet)),
+        ),
+        getUserMedia,
+        enumerateDevices: () =>
+          Promise.resolve([
+            { kind: 'videoinput', deviceId: 'w1', label: granted ? 'Minha webcam' : '' },
+          ] as MediaDeviceInfo[]),
+      },
+    })
+    return { meet, meetTrack, webcamTrack, webcamStreams, getUserMedia }
+  }
+
+  async function openPlayersStep(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Selecionar fonte de vídeo' }))
+    await user.click(await screen.findByRole('button', { name: 'Próximo: jogadores' }))
+  }
+
+  async function turnOnWebcam(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByLabelText('Minha webcam'))
+    await user.click(screen.getByRole('button', { name: 'Permitir e listar câmeras' }))
+    await user.click(await screen.findByRole('button', { name: 'Ligar minha webcam' }))
+    await screen.findByTestId('webcam-label')
+  }
+
+  it('runs the Meet capture and the webcam together, both feeding the table', async () => {
+    const user = userEvent.setup()
+    const m = mockBoth()
+    render(<App />)
+    await openPlayersStep(user)
+    await turnOnWebcam(user)
+
+    expect(screen.getByTestId('webcam-label')).toHaveTextContent('Minha webcam')
+    expect(screen.getByTestId('webcam-resolution')).toHaveTextContent('1280×720 a 30 fps')
+    // The Meet capture is still the table's source.
+    expect(m.meet.allStopped).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Ir para a mesa' }))
+    const remote = await screen.findByRole('article', { name: 'Você' })
+    expect(remote.querySelector('canvas')).not.toBeNull()
+    expect(screen.queryByText('Ligar webcam')).toBeNull()
+    expect(m.webcamTrack.stopCalls).toBe(0)
+  })
+
+  it('"Parar captura" turns off the Meet capture and the webcam', async () => {
+    const user = userEvent.setup()
+    const m = mockBoth()
+    render(<App />)
+    await openPlayersStep(user)
+    await turnOnWebcam(user)
+    await user.click(screen.getByRole('button', { name: 'Ir para a mesa' }))
+    await screen.findByRole('heading', { name: 'Mesa' })
+
+    await user.click(screen.getByRole('button', { name: 'Parar captura' }))
+    expect(m.meet.allStopped).toBe(true)
+    expect(m.webcamTrack.stopCalls).toBeGreaterThan(0)
+  })
+
+  it('losing only the webcam keeps the Meet portraits and offers to reconnect', async () => {
+    const user = userEvent.setup()
+    const m = mockBoth()
+    render(<App />)
+    await openPlayersStep(user)
+    await turnOnWebcam(user)
+    await user.click(screen.getByRole('button', { name: 'Ir para a mesa' }))
+    await screen.findByRole('heading', { name: 'Mesa' })
+
+    act(() => m.webcamTrack.endFromBrowser())
+    expect(await screen.findByRole('alert')).toHaveTextContent(/webcam foi desconectada/)
+    // The five portraits are not marked as lost: the Meet capture is still up.
+    expect(screen.getAllByText('Fonte perdida')).toHaveLength(1)
+    expect(m.meet.allStopped).toBe(false)
+
+    m.webcamTrack.readyState = 'live'
+    await user.click(screen.getByRole('button', { name: 'Reconectar webcam' }))
+    await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(screen.queryByText('Fonte perdida')).toBeNull()
+  })
+
+  it('switching the remote seat away from the webcam keeps the other modes working', async () => {
+    const user = userEvent.setup()
+    mockBoth()
+    render(<App />)
+    await openPlayersStep(user)
+    await user.click(screen.getByLabelText('Recorte da captura'))
+    expect(screen.getByTestId('thumb-remote')).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Avatar'))
+    expect(screen.queryByTestId('thumb-remote')).toBeNull()
+    await user.click(screen.getByLabelText('Minha webcam'))
+    // Webcam mode shows its thumbnail too, even before the webcam is on.
+    expect(screen.getByTestId('thumb-remote')).toBeInTheDocument()
+  })
+})

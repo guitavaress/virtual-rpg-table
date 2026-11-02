@@ -18,7 +18,10 @@ import {
 type View = 'calibrate' | 'table'
 
 export function App() {
-  const { state, start, stop } = useCapture()
+  const { state, start, stop: stopMain } = useCapture()
+  // Second, independent source: only feeds the remote seat.
+  const webcam = useCapture()
+  const lastWebcam = useRef<CameraOptions | null>(null)
   const [initial] = useState(loadTableConfig)
   const [config, setConfig] = useState<TableConfig>(initial.config)
   // Persisting starts at the first "Ir para a mesa" (or with an existing saved
@@ -40,6 +43,18 @@ export function App() {
   const updateConfig = useCallback((update: (c: TableConfig) => TableConfig) => {
     setConfig(update)
   }, [])
+
+  const startWebcam = (options: CameraOptions): void => {
+    lastWebcam.current = options
+    void webcam.start(new LocalCameraSource(options))
+  }
+  // Click handler: reopening the camera needs a fresh user gesture.
+  const reconnectWebcam = (): void => startWebcam(lastWebcam.current ?? {})
+  // Leaving the table turns off both cameras (the room light, too).
+  const stop = (): void => {
+    stopMain()
+    webcam.stop()
+  }
 
   const forgetConfig = (): void => {
     clearTableConfig()
@@ -88,6 +103,8 @@ export function App() {
         }}
         onReconnect={reconnect}
         onStop={stop}
+        webcam={webcam.state}
+        onStartWebcam={reconnectWebcam}
       />
     )
   }
@@ -108,6 +125,9 @@ export function App() {
         }}
         onSwitchDisplay={selectDisplay}
         onStop={stop}
+        webcam={webcam.state}
+        onStartWebcam={startWebcam}
+        onStopWebcam={webcam.stop}
       />
     )
   }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { AttachedMedia, SourceKind } from '../../features/capture/types'
+import type { CameraOptions } from '../../features/capture/localCameraSource'
+import type { AttachedMedia, CaptureState, SourceKind } from '../../features/capture/types'
 import { CropEditor, type CropBox } from '../../features/calibration/CropEditor'
 import { RoiEditor } from '../../features/calibration/RoiEditor'
 import { RoiPreview } from '../../features/calibration/RoiPreview'
@@ -51,6 +52,10 @@ export interface CalibrationViewProps {
   onGoToTable(): void
   onSwitchDisplay(): void
   onStop(): void
+  /** The remote seat's own source (this computer's webcam). */
+  webcam: CaptureState
+  onStartWebcam(options: CameraOptions): void
+  onStopWebcam(): void
 }
 
 const isPlayerId = (id: string): id is PlayerId => (PLAYER_IDS as readonly string[]).includes(id)
@@ -67,6 +72,9 @@ export function CalibrationView({
   onGoToTable,
   onSwitchDisplay,
   onStop,
+  webcam,
+  onStartWebcam,
+  onStopWebcam,
 }: CalibrationViewProps) {
   const [stage, setStage] = useState<HTMLDivElement | null>(null)
   // Remembers which media failed, so a new source clears the error without an effect.
@@ -90,6 +98,31 @@ export function CalibrationView({
   }, [config, videoSize])
   const canvasRef = usePortraitRenderer(video, rects)
 
+  // The webcam is a second, independent source that only feeds the remote seat.
+  const webcamMedia = webcam.status === 'active' ? webcam.media : null
+  const [webcamVideo, webcamVideoRef] = useAttachedVideo(webcamMedia)
+  const webcamSize = useVideoSize(webcamVideo)
+  const [webcamStage, setWebcamStage] = useState<HTMLDivElement | null>(null)
+  const webcamStageSize = useElementSize(webcamStage)
+  const webcamDisplay = containedRect(webcamStageSize, webcamSize)
+  const webcamRects = useMemo<PortraitRects>(
+    () => ({
+      remote:
+        config.remote.mode === 'webcam'
+          ? portraitFrameRect(config.remote.webcamCrop, FULL_FRAME, webcamSize)
+          : null,
+    }),
+    [config.remote.mode, config.remote.webcamCrop, webcamSize],
+  )
+  const webcamCanvasRef = usePortraitRenderer(webcamVideo, webcamRects)
+  const webcamEditing = step === 'players' && config.remote.mode === 'webcam'
+  const remoteCanvasRef =
+    config.remote.mode === 'webcam'
+      ? webcamCanvasRef('remote')
+      : config.remote.mode === 'crop'
+        ? canvasRef('remote')
+        : undefined
+
   const boxes = useMemo<CropBox[]>(() => {
     const list: CropBox[] = config.players.map((p, i) => ({
       id: p.id,
@@ -109,6 +142,19 @@ export function CalibrationView({
     }
     return list
   }, [config])
+
+  const webcamBoxes = useMemo<CropBox[]>(
+    () => [
+      {
+        id: 'remote',
+        label: `R · ${config.remote.name}`,
+        color: PLAYER_COLORS.remote,
+        crop: config.remote.webcamCrop,
+        region: 'frame',
+      },
+    ],
+    [config.remote.name, config.remote.webcamCrop],
+  )
 
   const setRoi = (roi: NormRect): void => onConfigChange((c) => ({ ...c, roi }))
 
@@ -252,6 +298,11 @@ export function CalibrationView({
               config={config}
               video={videoSize}
               canvasRef={canvasRef}
+              remoteCanvasRef={remoteCanvasRef}
+              webcam={webcam}
+              webcamSize={webcamSize}
+              onStartWebcam={onStartWebcam}
+              onStopWebcam={onStopWebcam}
               onPlayerChange={(id, patch) =>
                 onConfigChange((c) => ({
                   ...c,
@@ -264,6 +315,48 @@ export function CalibrationView({
               onDistribute={distribute}
             />
           )}
+          {/* Always mounted so the webcam frames keep flowing to the portrait; only shown while editing. */}
+          <section
+            aria-label="Prévia da sua webcam"
+            className={
+              webcamEditing
+                ? 'flex flex-col gap-2'
+                : 'pointer-events-none fixed top-0 left-0 h-px w-px opacity-0'
+            }
+          >
+            {webcamEditing && <h2 className="text-sm font-semibold text-stone-300">Sua webcam</h2>}
+            <div
+              ref={setWebcamStage}
+              className="relative aspect-video w-full overflow-hidden rounded-xl bg-black"
+            >
+              <video
+                ref={webcamVideoRef}
+                muted
+                playsInline
+                autoPlay
+                disablePictureInPicture
+                data-testid="webcam-video"
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+              {webcamEditing && webcamMedia && (
+                <CropEditor
+                  display={webcamDisplay}
+                  video={webcamSize}
+                  roi={FULL_FRAME}
+                  boxes={webcamBoxes}
+                  onChange={(_, crop) =>
+                    onConfigChange((c) => ({ ...c, remote: { ...c.remote, webcamCrop: crop } }))
+                  }
+                />
+              )}
+            </div>
+            {webcamEditing && webcamMedia && (
+              <p className="text-xs text-stone-500">
+                Resolução entregue:{' '}
+                <span data-testid="webcam-resolution">{describeTrackSettings(webcamMedia)}</span>
+              </p>
+            )}
+          </section>
         </aside>
       </div>
     </main>

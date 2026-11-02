@@ -26,7 +26,8 @@ export interface PlayerSlot {
   readonly crop: PortraitCrop
 }
 
-export type RemoteMode = 'crop' | 'avatar'
+/** `webcam` = this computer's camera (a second, independent source). */
+export type RemoteMode = 'webcam' | 'crop' | 'avatar'
 
 export interface RemoteSlot {
   readonly name: string
@@ -34,6 +35,8 @@ export interface RemoteSlot {
   readonly mode: RemoteMode
   /** Relative to the whole frame: the Meet self-preview is outside the ROI. */
   readonly crop: PortraitCrop
+  /** Relative to the whole webcam frame (the `webcam` mode's own source). */
+  readonly webcamCrop: PortraitCrop
 }
 
 /** Everything the table needs. No frames, faces or biometrics, by design. */
@@ -43,6 +46,8 @@ export interface TableConfig {
   readonly players: readonly PlayerSlot[]
   readonly remote: RemoteSlot
 }
+
+export const DEFAULT_WEBCAM_CROP: PortraitCrop = { cx: 0.5, cy: 0.5, size: 0.7 }
 
 export function defaultConfig(): TableConfig {
   // Assume a 16:9 capture until the real size is known, so the default
@@ -65,6 +70,7 @@ export function defaultConfig(): TableConfig {
       character: '',
       mode: 'avatar',
       crop: { cx: 0.85, cy: 0.8, size: 0.3 },
+      webcamCrop: DEFAULT_WEBCAM_CROP,
     },
   }
 }
