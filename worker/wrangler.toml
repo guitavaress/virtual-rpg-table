@@ -1,0 +1,34 @@
+# Worker de sinalização da câmera direta (F1.5). Ver docs/tasks/F1.5.md e D-017/D-018.
+# Secrets (NUNCA neste arquivo): TURN_KEY_ID e TURN_KEY_API_TOKEN, cadastrados no
+# painel da Cloudflare (Worker → Settings → Variables and Secrets, tipo "Secret").
+name = "vrt-signal"
+main = "src/index.ts"
+compatibility_date = "2026-10-28"
+# O wrangler não manda métricas de uso deste projeto.
+send_metrics = false
+
+# URL pública https://vrt-signal.<subdomínio>.workers.dev; sem URLs de preview por versão.
+workers_dev = true
+preview_urls = false
+
+# Privacidade: sem logs persistidos (nada de SDP, token ou IP guardado por nós).
+[observability]
+enabled = false
+
+[vars]
+# Origens que podem criar sala, conectar e pedir TURN. Separadas por vírgula.
+# "https://*.dominio" aceita subdomínios (deploys de preview do Pages).
+ALLOWED_ORIGINS = "https://virtual-rpg-table.pages.dev,https://*.virtual-rpg-table.pages.dev"
+
+# Só os NOMES. Os valores ficam no painel da Cloudflare, nunca no repositório.
+[secrets]
+required = ["TURN_KEY_ID", "TURN_KEY_API_TOKEN"]
+
+[[durable_objects.bindings]]
+name = "SIGNAL_ROOM"
+class_name = "SignalRoom"
+
+# Plano gratuito: só Durable Objects com SQLite.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SignalRoom"]

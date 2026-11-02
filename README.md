@@ -2,12 +2,12 @@
 
 Camada visual local que transforma a câmera coletiva de uma chamada do Google Meet (cinco pessoas na mesma mesa) em retratos individuais, mais um card para o jogador remoto. A conversa e o áudio continuam no Meet.
 
-> **Estado:** Fase 1 (cinco retratos com recortes manuais, mesa com 6 cards e configuração salva no navegador). Especificação completa em [`docs/virtual-rpg-table-plano-claude-gpt.md`](docs/virtual-rpg-table-plano-claude-gpt.md).
+> **Estado:** Fase 1 completa (cinco retratos com recortes manuais, mesa com 6 cards e configuração salva no navegador). F1.5 em andamento: W0 (câmera deste computador) feita; W1 (publicação na Cloudflare e esqueleto da sinalização) nesta branch. Especificação completa em [`docs/virtual-rpg-table-plano-claude-gpt.md`](docs/virtual-rpg-table-plano-claude-gpt.md).
 
 ## Privacidade e limites
 
 - A captura só começa com clique e com a escolha da aba/janela no **seletor do próprio navegador**. A permissão precisa ser renovada a cada sessão.
-- O vídeo é processado só no navegador. Nada é gravado, enviado ou retransmitido, e não há backend.
+- O vídeo é processado só no navegador. Nada é gravado, enviado ou retransmitido. O app ainda não usa o Worker de sinalização da F1.5 (`worker/`); isso vem na W2. Ele só troca mensagens de conexão e nunca recebe vídeo.
 - O áudio **não** é capturado (`audio: false`) e o `<video>` fica sempre mudo.
 - Sem reconhecimento facial de identidade. Nomes e associações serão manuais.
 - O app não consegue recuperar detalhes que não vieram na chamada: se a câmera coletiva chega pequena, os recortes ficam borrados.
@@ -48,8 +48,10 @@ Abra `http://localhost:5173` no Chrome/Edge **do Windows**. O WSL2 encaminha `lo
 | `npm test`               | Vitest (unidade + componentes, jsdom)         |
 | `npm run format[:check]` | Prettier                                      |
 | `npm run test:e2e`       | Playwright (Chromium) sobre a fonte sintética |
+| `npm run test:app`       | Só os testes do app                           |
+| `npm run test:worker`    | Só os testes do Worker (runtime workerd)      |
 
-Na primeira vez, instale o navegador do Playwright com `npx playwright install chromium`. Ele fica em `~/.cache/ms-playwright`, fora do projeto. O E2E sobe o dev server sozinho, ou reaproveita um que já esteja rodando na porta 5173.
+Na primeira vez, instale também as dependências do Worker com `npm ci --prefix worker`; `npm test` e `npm run typecheck` cobrem o app e o Worker. Instale o navegador do Playwright com `npx playwright install chromium`. Ele fica em `~/.cache/ms-playwright`, fora do projeto. O E2E sobe o dev server sozinho, ou reaproveita um que já esteja rodando na porta 5173.
 
 ## Smoke test manual (Chrome **e** Edge no Windows)
 
@@ -136,6 +138,64 @@ O card "Remoto" pode usar a sua webcam, ao mesmo tempo que a captura do Meet ali
    - [ ] A mesa continua, com "Fonte perdida", e **Reconectar** volta ao vivo.
 7. Volte em **Calibrar → 1. Câmera coletiva** e mova a moldura:
    - [ ] Os 5 recortes acompanham.
+
+## Deploy (Cloudflare)
+
+São duas peças, numa conta Cloudflare só:
+
+| Peça                                      | Onde                                | Como publica                                                                     |
+| ----------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------- |
+| Site (este app, estático)                 | Cloudflare Pages, `*.pages.dev`     | Integração Git do Pages: push na `main` = produção; outras branches = prévia     |
+| Worker `vrt-signal` (sinalização da F1.5) | Cloudflare Workers, `*.workers.dev` | GitHub Actions, job `deploy-worker`: só na `main` e só depois de todo o CI verde |
+
+**Onde fica cada segredo.** Nenhum vai para arquivo versionado nem leva o prefixo `VITE_` (o Vite embute essas variáveis no bundle público).
+
+| Segredo                             | Fica em                                 | Para quê                                    |
+| ----------------------------------- | --------------------------------------- | ------------------------------------------- |
+| `TURN_KEY_ID`, `TURN_KEY_API_TOKEN` | Secrets do Worker, na Cloudflare        | O Worker pede credenciais TURN curtas (4 h) |
+| `CLOUDFLARE_API_TOKEN`              | Secret do repositório no GitHub Actions | O CI publica o Worker                       |
+| `CLOUDFLARE_ACCOUNT_ID`             | Secret do repositório no GitHub Actions | Idem (não é sigiloso, mas fica junto)       |
+
+### Primeira configuração (uma vez)
+
+1. **Pages.** No painel da Cloudflare, vá em **Workers & Pages → Create application → Pages → Connect to Git**. Autorize o GitHub só para o repositório `virtual-rpg-table` e preencha:
+   - Project name: `virtual-rpg-table`. Ele vira o endereço `https://virtual-rpg-table.pages.dev`;
+   - Production branch: `main`;
+   - Framework preset: `None`;
+   - Build command: `npm run build`;
+   - Build output directory: `dist`.
+
+   A versão do Node vem do arquivo `.node-version`.
+
+2. **Origens.** Se o endereço do Pages saiu diferente, troque `ALLOWED_ORIGINS` em `worker/wrangler.toml` (o endereço exato e o `https://*.` das prévias) e rode `npm run types --prefix worker`.
+3. **Token de API.** Vá em **My Profile → API Tokens → Create Token** e use o modelo **Edit Cloudflare Workers**. Em Account Resources, escolha só a sua conta. O token aparece uma vez só: guarde até o passo 4.
+4. **Secrets do GitHub.** No repositório, vá em **Settings → Secrets and variables → Actions → New repository secret** e cadastre `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`. O Account ID aparece na página inicial da conta, em **Account details**.
+5. **Chave TURN.** Vá em **Realtime → TURN Server → Create** (nome: `vrt-turn`). Guarde o **Turn Token ID** e o **API Token**.
+6. **Primeiro deploy do Worker e secrets TURN.** Rode isto num terminal WSL seu, **não** colado em chat:
+
+   ```bash
+   cd ~/virtual-rpg-table/worker
+   npm ci
+   read -rs CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN   # cole o token (não aparece)
+   read -r CLOUDFLARE_ACCOUNT_ID && export CLOUDFLARE_ACCOUNT_ID  # cole o Account ID
+   npx wrangler deploy
+   npx wrangler secret put TURN_KEY_ID         # cole o Turn Token ID
+   npx wrangler secret put TURN_KEY_API_TOKEN  # cole o API Token da TURN
+   unset CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
+   ```
+
+   A partir daqui, cada merge na `main` republica o Worker sozinho. O `wrangler deploy` não apaga os secrets.
+
+7. **Conferir:**
+   - `curl https://vrt-signal.<seu-subdominio>.workers.dev/api/health` deve responder `{"ok":true}`;
+   - o site abre em HTTPS no endereço do Pages.
+
+### Rotina e manutenção
+
+- **Trocar a chave TURN:** crie uma chave nova no painel e rode `npx wrangler secret put` de novo, com o token de API exportado como no passo 6. Depois, apague a chave antiga.
+- **Revogar o token de API:** em **My Profile → API Tokens**. Depois, cadastre um novo token no GitHub.
+- **Worker local:** `npm run dev --prefix worker` sobe em `http://localhost:8787`. Para aceitar o app local, crie `worker/.dev.vars` (ignorado pelo git) com a linha `ALLOWED_ORIGINS=http://localhost:5173`. Sem os secrets TURN, a rota `/api/turn` responde 503.
+- **Rotas do Worker:** `GET /api/health`, `POST /api/rooms`, `GET /api/signal` (WebSocket) e `POST /api/turn`. Os detalhes estão em `docs/ARCHITECTURE.md`.
 
 ## Documentação
 

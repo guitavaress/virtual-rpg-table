@@ -2,3 +2,6 @@ dist
 node_modules
 package-lock.json
 docs/virtual-rpg-table-plano-claude-gpt.md
+worker/worker-configuration.d.ts
+worker/package-lock.json
+.wrangler

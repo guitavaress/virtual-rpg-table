@@ -10,10 +10,12 @@
     "lint": "oxlint --deny-warnings",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -b",
-    "test": "vitest run",
+    "typecheck": "tsc -b && npm run typecheck --prefix worker",
+    "test": "vitest run && npm test --prefix worker",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:app": "vitest run",
+    "test:worker": "npm test --prefix worker"
   },
   "dependencies": {
     "react": "19.3.1",

@@ -83,3 +83,36 @@
 - A proporção 3:4 é garantida em pixels da fonte. Depois do arredondamento para pixels inteiros, o desvio é de no máximo 1 px.
 - Cada tela tem o seu próprio `<video>` (o da mesa fica oculto). Trocar de tela reanexa o mesmo `MediaStream`; nenhuma track nova é pedida.
 - O `localStorage` guarda só a configuração (ROI, recortes, nomes, personagens e modo do remoto), nunca frames.
+
+# F1.5 W1: Worker de sinalização (`worker/`)
+
+Pacote separado, com `package.json` e lockfile próprios. Os tipos do runtime da Cloudflare não convivem com os do DOM do app. Ainda não é usado pelo app: a W2 liga o transmissor e o receptor a ele.
+
+```text
+ navegador (origem permitida)
+   │ POST /api/rooms ─────────────┐
+   │ GET  /api/signal?role=…  (WebSocket; token no Sec-WebSocket-Protocol)
+   │ POST /api/turn {token} ──────┤
+   ▼                              ▼
+ Worker vrt-signal (src/index.ts) ── origem? token bem formado? ──► SignalRoom (1 DO por token, SQLite)
+   │                                                                 meta: { expiresAt, turnIssued }
+   └── só depois do "ok" do DO ──► API TURN da Cloudflare (chave em secret) → iceServers de 4 h
+```
+
+| Caminho                    | Responsabilidade                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `worker/src/index.ts`      | Rotas, checagem de origem, CORS, `no-store`                                        |
+| `worker/src/signalRoom.ts` | Durable Object: criar, vaga por papel, repasse, aviso de entrada/saída, alarme     |
+| `worker/src/protocol.ts`   | Papéis, subprotocolo, mensagem repassável, códigos de fechamento (funções puras)   |
+| `worker/src/token.ts`      | Token de 128 bits (base64url) e validação da forma                                 |
+| `worker/src/origin.ts`     | `ALLOWED_ORIGINS` (exata ou `https://*.dominio`)                                   |
+| `worker/src/turn.ts`       | Chamada à API TURN, validação da resposta, remoção da porta 53                     |
+| `worker/wrangler.toml`     | Binding do DO, migração SQLite, origens, nomes (não valores) dos secrets, logs off |
+
+## Invariantes da W1
+
+- O token nunca aparece em URL: vai no subprotocolo do WebSocket ou no corpo do POST.
+- Uma vaga por papel (`sender`, `receiver`). Como só há dois papéis, um terceiro peer é sempre recusado (409).
+- A sala expira 2 h depois de ficar sem peers. O alarme reagenda enquanto há alguém conectado e apaga tudo (`deleteAll`) quando vence.
+- O DO guarda só `expiresAt` e o contador de TURN. SDP e ICE são repassados sem ser guardados nem registrados. Logs do Worker estão desligados.
+- A chave TURN só existe no Worker. O navegador recebe username/credential temporários, e só se a sala tiver um peer conectado (no máximo 20 por sala).
