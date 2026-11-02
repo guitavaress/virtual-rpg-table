@@ -96,9 +96,11 @@ Preparação: no PC da sala, num navegador só (Chrome **ou** Edge), com o Meet 
 
 Anote para cada combinação:
 
-| Navegador do app | Navegador do Meet | Funcionou? | Resolução real (1080p / 720p) | Meet manteve o vídeo? | Mensagem de erro |
-| ---------------- | ----------------- | ---------- | ----------------------------- | --------------------- | ---------------- |
-|                  |                   |            |                               |                       |                  |
+| Navegador do app       | Navegador do Meet | Funcionou?  | Resolução real (1080p / 720p)          | Meet manteve o vídeo? | Mensagem de erro |
+| ---------------------- | ----------------- | ----------- | -------------------------------------- | --------------------- | ---------------- |
+| Chrome (outra aba)     | Chrome            | Sim         | 1920×1080 a 30 fps / 1280×720 a 30 fps | Sim                   | —                |
+| Edge                   | Edge              | não testado | —                                      | —                     | —                |
+| Navegadores diferentes | —                 | não testado | —                                      | —                     | —                |
 
 Se aparecer "A câmera está em uso por outro programa", é o `NotReadableError`: no Windows, programas (e às vezes navegadores) diferentes não compartilham a webcam. Esse resultado também vale como dado do gate.
 
