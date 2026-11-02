@@ -2,7 +2,7 @@ import { env, exports } from 'cloudflare:workers'
 import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  MAX_MESSAGE_CHARS,
+  MAX_MESSAGE_BYTES,
   MAX_TURN_ISSUES,
   ROOM_IDLE_MS,
   type SignalRoom,
@@ -259,7 +259,7 @@ describe('repasse de sinalização', () => {
   it('fecha quem manda mensagem grande demais', async () => {
     const { token } = await createRoom()
     const sender = await connect(token, 'sender')
-    sender.ws.send(JSON.stringify({ type: 'offer', sdp: 'x'.repeat(MAX_MESSAGE_CHARS) }))
+    sender.ws.send(JSON.stringify({ type: 'offer', sdp: 'x'.repeat(MAX_MESSAGE_BYTES) }))
     expect((await sender.closed).code).toBe(1009)
   })
 
@@ -437,5 +437,73 @@ describe('credenciais TURN', () => {
     expect(await response.json()).toEqual({ error: 'turn-not-configured' })
     expect(spy).not.toHaveBeenCalled()
     expect((await readMeta(token))?.turnIssued).toBe(0)
+  })
+})
+
+describe('revisão Codex da W1 (P2)', () => {
+  function expectCommonHeaders(response: Response): void {
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+  }
+
+  it('recusas do Durable Object (404, 409, 410) levam os cabeçalhos comuns', async () => {
+    const missing = await connectRaw(generateRoomToken(), 'sender')
+    expect(missing.status).toBe(404)
+    expectCommonHeaders(missing)
+    expect(await missing.json()).toEqual({ error: 'not-found' })
+
+    const { token } = await createRoom()
+    await connect(token, 'sender')
+    const taken = await connectRaw(token, 'sender')
+    expect(taken.status).toBe(409)
+    expectCommonHeaders(taken)
+    expect(await taken.json()).toEqual({ error: 'taken' })
+
+    const old = await createRoom()
+    await runInDurableObject(stubFor(old.token), async (_i: SignalRoom, state) => {
+      await state.storage.put('meta', { expiresAt: Date.now() - 1, turnIssued: 0 })
+    })
+    const expired = await connectRaw(old.token, 'receiver')
+    expect(expired.status).toBe(410)
+    expectCommonHeaders(expired)
+    expect(await expired.json()).toEqual({ error: 'expired' })
+  })
+
+  it('o teto da mensagem é em bytes UTF-8, não em caracteres', async () => {
+    const { token } = await createRoom()
+    const sender = await connect(token, 'sender')
+    const receiver = await connect(token, 'receiver')
+    await receiver.next()
+    await sender.next()
+
+    // ~30 mil caracteres, mas ~90 KB em UTF-8: acima do teto de 64 KiB.
+    sender.ws.send(JSON.stringify({ type: 'offer', sdp: '漢'.repeat(30000) }))
+    const outcome = await Promise.race([
+      sender.closed.then((event) => `fechou ${event.code}`),
+      receiver.next().then(() => 'repassou'),
+    ])
+    expect(outcome).toBe('fechou 1009')
+  })
+
+  it('corpo do /api/turn sem Content-Length para de ser lido ao passar do teto', async () => {
+    let pulls = 0
+    const chunk = new TextEncoder().encode('x'.repeat(512))
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1
+        if (pulls > 400) controller.close()
+        else controller.enqueue(chunk)
+      },
+    })
+    const response = await exports.default.fetch(
+      new Request(`${BASE}/api/turn`, {
+        method: 'POST',
+        headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+        body,
+      }),
+    )
+    expect(response.status).toBe(400)
+    expect(pulls).toBeLessThan(10)
   })
 })
