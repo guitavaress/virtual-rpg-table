@@ -68,7 +68,7 @@ export class CapturedDisplaySource implements VideoSource {
     if (this.ownership.isDead) {
       // No `ended` event will ever fire for a track that is already ended.
       this.stop()
-      throw new DOMException('A fonte escolhida já terminou.', 'NotReadableError')
+      throw new DOMException('A fonte escolhida já terminou.', 'NotFoundError')
     }
     this.trackLabel = stream.getVideoTracks()[0]?.label ?? ''
     return { kind: 'stream', stream }

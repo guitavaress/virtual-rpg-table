@@ -136,7 +136,13 @@ function LostSourceBanner({
 }) {
   let text =
     'O compartilhamento foi encerrado. A mesa e os recortes foram mantidos: clique em Reconectar e escolha a aba do Meet de novo.'
-  if (capture.status === 'requesting') text = 'Aguardando você escolher a aba ou janela…'
+  if (capture.status === 'ended' && capture.kind === 'camera') {
+    text =
+      'A câmera foi desconectada ou liberada. A mesa e os recortes foram mantidos: clique em Reconectar para abrir a câmera de novo.'
+  }
+  if (capture.status === 'requesting')
+    text =
+      capture.kind === 'camera' ? 'Abrindo a câmera…' : 'Aguardando você escolher a aba ou janela…'
   if (capture.status === 'error') text = describeCaptureError(capture.kind, capture.error)
 
   return (

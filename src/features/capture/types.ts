@@ -1,5 +1,5 @@
-/** Where the frames come from. Only `display` touches real meeting content. */
-export type SourceKind = 'display' | 'file' | 'synthetic'
+/** Where the frames come from. Only `display` (and `camera`, a local webcam) touches real meeting content. */
+export type SourceKind = 'display' | 'camera' | 'file' | 'synthetic'
 
 /** What a `<video>` element needs to show a source. */
 export type AttachedMedia =
@@ -24,7 +24,14 @@ export interface VideoSource {
 }
 
 export type CaptureErrorCode =
-  'denied-or-cancelled' | 'no-user-gesture' | 'unsupported' | 'source-unavailable' | 'unknown'
+  | 'denied-or-cancelled'
+  | 'no-user-gesture'
+  | 'unsupported'
+  | 'source-unavailable'
+  /** The device exists but another program holds it (NotReadableError). */
+  | 'source-busy'
+  | 'overconstrained'
+  | 'unknown'
 
 export interface CaptureError {
   readonly code: CaptureErrorCode

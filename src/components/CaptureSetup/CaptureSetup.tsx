@@ -1,12 +1,16 @@
-import { useId, type ChangeEvent, type ReactNode } from 'react'
+import { useId, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useCameraDevices } from '../../features/capture/cameraDevices'
+import type { CameraOptions, CameraQuality } from '../../features/capture/localCameraSource'
 import type { CaptureState } from '../../features/capture/types'
-import { describeCaptureError, ENDED_MESSAGE } from './messages'
+import { toCaptureError } from '../../features/capture/errors'
+import { CAMERA_BUSY_MESSAGE, describeCaptureError, ENDED_MESSAGE } from './messages'
 
 export interface CaptureSetupProps {
   state: CaptureState
   /** A table setup (names, crops) is saved in this browser. */
   hasSavedConfig?: boolean
   onSelectDisplay(): void
+  onSelectCamera(options: CameraOptions): void
   onSelectFile(file: File): void
   onSelectSynthetic(): void
   onForgetConfig?(): void
@@ -17,6 +21,7 @@ export function CaptureSetup({
   state,
   hasSavedConfig = false,
   onSelectDisplay,
+  onSelectCamera,
   onSelectFile,
   onSelectSynthetic,
   onForgetConfig,
@@ -97,6 +102,8 @@ export function CaptureSetup({
         </div>
       </div>
 
+      <CameraSection busy={busy} onSelectCamera={onSelectCamera} />
+
       <StatusMessage state={state} />
 
       {hasSavedConfig && onForgetConfig && (
@@ -115,6 +122,128 @@ export function CaptureSetup({
   )
 }
 
+/**
+ * "Câmera deste computador": camera labels only exist after the first
+ * permission, so the first click asks and lists; the next one starts.
+ */
+function CameraSection({
+  busy,
+  onSelectCamera,
+}: {
+  busy: boolean
+  onSelectCamera(options: CameraOptions): void
+}) {
+  const { devices, listed, grantAndList } = useCameraDevices()
+  const [deviceId, setDeviceId] = useState('')
+  const [quality, setQuality] = useState<CameraQuality>('1080p')
+  const [probeError, setProbeError] = useState<string | null>(null)
+  const [probing, setProbing] = useState(false)
+  const selectId = useId()
+  const qualityId = useId()
+
+  const grant = (): void => {
+    setProbeError(null)
+    setProbing(true)
+    grantAndList()
+      .catch((err: unknown) => {
+        const name = err instanceof DOMException ? err.name : ''
+        setProbeError(
+          name === 'NotReadableError'
+            ? CAMERA_BUSY_MESSAGE
+            : describeCaptureError('camera', toCaptureError(err)),
+        )
+      })
+      .finally(() => setProbing(false))
+  }
+
+  // An id from a camera that was unplugged falls back to the default camera.
+  const effectiveId = devices.some((d) => d.deviceId === deviceId) ? deviceId : ''
+
+  const field =
+    'rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-stone-100 focus-visible:ring-4 focus-visible:ring-stone-400 focus-visible:outline-none'
+  const button =
+    'rounded-lg border border-stone-600 px-4 py-2 text-stone-200 transition hover:border-stone-400 focus-visible:ring-4 focus-visible:ring-stone-400 focus-visible:outline-none disabled:opacity-60'
+
+  return (
+    <section
+      aria-labelledby="camera-title"
+      className="flex flex-col gap-3 rounded-xl border border-stone-700 p-4"
+    >
+      <h2 id="camera-title" className="text-sm font-semibold text-stone-100">
+        Câmera deste computador
+      </h2>
+      <p className="text-xs text-stone-400">
+        Usa a webcam direto, sem passar pelo Meet. Para dividir a câmera com o Meet, abra este app
+        no mesmo navegador em que o Meet está aberto.
+      </p>
+      {listed ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex flex-1 flex-col gap-1">
+            <label htmlFor={selectId} className="text-xs text-stone-400">
+              Câmera
+            </label>
+            <select
+              id={selectId}
+              value={effectiveId}
+              onChange={(e) => setDeviceId(e.target.value)}
+              className={field}
+            >
+              <option value="">Câmera padrão</option>
+              {devices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor={qualityId} className="text-xs text-stone-400">
+              Qualidade
+            </label>
+            <select
+              id={qualityId}
+              value={quality}
+              onChange={(e) => setQuality(e.target.value === '720p' ? '720p' : '1080p')}
+              className={field}
+            >
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSelectCamera({ deviceId: effectiveId || undefined, quality })}
+            className={button}
+          >
+            Usar câmera deste computador
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={busy || probing}
+            onClick={grant}
+            className={`${button} self-start`}
+          >
+            Câmera deste computador
+          </button>
+          <p className="text-xs text-stone-500">
+            O primeiro clique pede a permissão da câmera e lista as câmeras disponíveis; depois você
+            escolhe a câmera e a qualidade.
+          </p>
+        </div>
+      )}
+      {probeError && (
+        <p role="alert" className="text-sm text-red-300">
+          {probeError}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function StatusMessage({ state }: { state: CaptureState }) {
   let content: ReactNode = null
   let tone = 'text-stone-300'
@@ -123,7 +252,9 @@ function StatusMessage({ state }: { state: CaptureState }) {
     content =
       state.kind === 'display'
         ? 'Aguardando você escolher a aba ou janela no seletor do navegador…'
-        : 'Carregando fonte…'
+        : state.kind === 'camera'
+          ? 'Abrindo a câmera… se o navegador pedir, permita o acesso.'
+          : 'Carregando fonte…'
   } else if (state.status === 'ended') {
     content = ENDED_MESSAGE
     tone = 'text-amber-200'

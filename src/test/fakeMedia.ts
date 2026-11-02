@@ -14,6 +14,12 @@ export class FakeTrack extends EventTarget {
     this.label = label
   }
 
+  settings: MediaTrackSettings = {}
+
+  getSettings(): MediaTrackSettings {
+    return this.settings
+  }
+
   stop(): void {
     this.stopCalls++
     this.readyState = 'ended'
@@ -72,6 +78,24 @@ export function deferred<T>(): Deferred<T> {
     reject = rej
   })
   return { promise, resolve, reject }
+}
+
+/** A getUserMedia provider whose calls resolve only when the test says so. */
+export function controllableCameraProvider() {
+  const calls: Deferred<MediaStream>[] = []
+  const constraints: (MediaStreamConstraints | undefined)[] = []
+  return {
+    calls,
+    constraints,
+    provider: {
+      getUserMedia(c?: MediaStreamConstraints): Promise<MediaStream> {
+        constraints.push(c)
+        const d = deferred<MediaStream>()
+        calls.push(d)
+        return d.promise
+      },
+    },
+  }
 }
 
 /** A getDisplayMedia provider whose calls resolve only when the test says so. */
