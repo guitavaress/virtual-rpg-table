@@ -34,3 +34,8 @@ dist-ssr
 # Playwright
 test-results
 playwright-report
+
+# Cloudflare Worker (estado local do wrangler e secrets de desenvolvimento)
+.wrangler
+.dev.vars
+.dev.vars.*

@@ -1,0 +1,9 @@
+# Cabeçalhos do Cloudflare Pages (copiado para dist/ pelo Vite).
+# - nada de iframe (a página do transmissor da W2 não pode ser embutida);
+# - câmera e captura de tela só nesta origem; microfone desligado (o app não usa áudio).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: camera=(self), display-capture=(self), microphone=(), geolocation=()

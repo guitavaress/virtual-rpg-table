@@ -100,3 +100,41 @@ Formato: contexto → decisão → consequência. Entradas mais novas no fim.
   - o PO precisa de uma conta Cloudflare;
   - o Worker guarda a chave TURN e emite credenciais curtas;
   - o plano gratuito do TURN, na data desta decisão, era 1.000 GB/mês somado ao SFU, com o excedente a US$ 0,05/GB. Revalidar os limites na W1.
+
+## D-018 — Desenho da infraestrutura da W1 (2026-11-01)
+
+- **Site:** Cloudflare Pages com integração Git. Cada push na `main` publica em produção e cada branch ganha uma prévia. A página de limites do Pages (atualizada em 2026-09-05) não fala em descontinuação; ela só indica Workers Static Assets para quem hospeda mais de 100 sites.
+- **Worker `vrt-signal`:** publicado pelo GitHub Actions (job `deploy-worker`), só na `main` e só depois de lint, testes, E2E e testes do Worker verdes. O site e o Worker ficam em origens diferentes (`*.pages.dev` e `*.workers.dev`). Por isso o Worker tem lista de origens (`ALLOWED_ORIGINS`) e CORS.
+  - A alternativa era um único Worker com assets estáticos e a mesma origem. Ela foi descartada porque o plano e o PO pediram o Pages.
+- **Pacote próprio em `worker/`:** os testes rodam no runtime real (`@cloudflare/vitest-plugin`, workerd com Durable Object de verdade), com o mesmo vitest 5.0.5 do app. O `@cloudflare/vitest-pool-workers` foi renomeado para esse pacote e só aceitava vitest 4.
+- **Token:** gerado no Worker (16 bytes de `crypto.getRandomValues`, base64url). O navegador nunca o põe em URL: no WebSocket ele vai como segundo item do `Sec-WebSocket-Protocol` (`vrt-signal-v1, <token>`), e no TURN, no corpo do POST.
+- **Dois peers:** uma vaga por papel. O teste de mutação mostrou que uma checagem separada de "sala cheia" era inalcançável, e ela foi removida.
+- **Origem não é autenticação:** um cliente fora do navegador forja o `Origin`. A checagem impede que outro site use a sinalização a partir do navegador de alguém. Abuso por script ficaria limitado pelos tetos diários do plano gratuito, e rate limit fica para quando houver sinal disso.
+- **Privacidade:** `observability.enabled = false`, `send_metrics = false`, `Cache-Control: no-store`. O DO guarda só `{ expiresAt, turnIssued }`.
+- **Limitação conhecida:** se a rede de um peer cair sem fechar o socket, a vaga dele fica ocupada até o runtime perceber. Heartbeat e reconexão são da W3.
+
+## D-019 — Limites do plano gratuito revalidados (2026-11-01)
+
+Fonte: páginas oficiais da Cloudflare, lidas em 2026-11-01. A data de atualização de cada página está na lista.
+
+- **Workers Free** (Workers → Platform → Limits): 100.000 requisições/dia (zera à 00:00 UTC; acima disso, erro 1027), 10 ms de CPU por requisição e 50 subrequisições por invocação.
+- **Durable Objects Free** (Pricing, atualizada em 2026-10-18):
+  - 100.000 requisições/dia e 13.000 GB-s/dia de duração;
+  - só backend SQLite, com 5 GB no total, 5 milhões de linhas lidas/dia e 100.000 linhas escritas/dia;
+  - abrir um WebSocket conta como requisição. Mensagens recebidas contam na proporção 20:1, e as enviadas não contam;
+  - com a API de hibernação, o socket ocioso não é cobrado por duração;
+  - limite de mensagem recebida: 32 MiB (Limits).
+- **Realtime TURN** (Pricing, atualizada em 2026-09-22): os primeiros 1.000 GB de cada mês são grátis, e SFU e TURN dividem essa franquia; acima disso, US$ 0,05/GB. Só conta o egress do servidor TURN para o cliente. STUN (`stun.cloudflare.com`) é grátis e sem limite.
+- **Pages Free** (Limits, atualizada em 2026-09-05): 500 builds/mês, 1 build por vez, 20 min por build, 20.000 arquivos e 25 MiB por arquivo.
+- **Estimativa para nós:**
+  - uma sessão gasta poucas dezenas de requisições (criar sala, 2 conexões e algumas mensagens), muito longe das 100.000/dia;
+  - o relay só entra quando o P2P falha. A 1080p (≈ 4 Mbps) são ≈ 1,8 GB/h por perna relayada, ou até ≈ 3,6 GB/h se os dois lados usarem TURN. Isso dá ≥ 275 h de relay por mês dentro da franquia;
+  - D-017 continua valendo.
+
+## D-020 — TURN adiado para antes da W3 (2026-11-01)
+
+- **Contexto:** para ativar o Cloudflare Realtime (TURN), o painel exige cadastrar cartão ou PayPal, mesmo com US$ 0,00 devido e 1.000 GB/mês grátis. A Cloudflare oferece alerta de uso, não um teto que corta o serviço.
+- **Decisão (PO):** não cadastrar o meio de pagamento agora. A W1 publica o Worker sem os secrets TURN, e a rota `/api/turn` responde **503 `turn-not-configured`**. Ela checa os secrets antes de acordar a sala e não gasta o contador. A W2 usa só STUN, que é grátis.
+- **Consequência:**
+  - os secrets TURN viraram **opcionais**. Saíram de `[secrets].required` no `wrangler.toml`, porque o wrangler 4.156 recusa o primeiro deploy de um Worker sem os secrets obrigatórios, e foram tipados como `string | undefined` em `worker/src/env.d.ts`;
+  - antes da W3, o PO decide entre ativar o TURN (README → "Ativar o TURN") e aceitar que redes que bloqueiam P2P não conectam.
