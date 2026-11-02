@@ -35,7 +35,7 @@ describe('LocalCameraSource', () => {
     })
     expect(fake.constraints[0]).toEqual({
       video: {
-        deviceId: 'cam-2',
+        deviceId: { exact: 'cam-2' },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
         frameRate: { ideal: 30 },

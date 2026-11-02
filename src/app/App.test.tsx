@@ -319,7 +319,7 @@ describe('App camera source (F1.5 W0)', () => {
 
     expect(m.getUserMedia).toHaveBeenLastCalledWith({
       video: {
-        deviceId: 'cam-b',
+        deviceId: { exact: 'cam-b' },
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 },
@@ -415,6 +415,25 @@ describe('App remote seat on this computer’s webcam (second source)', () => {
     expect(remote.querySelector('canvas')).not.toBeNull()
     expect(screen.queryByText('Ligar webcam')).toBeNull()
     expect(m.webcamTrack.stopCalls).toBe(0)
+  })
+
+  it('the remote webcam opens exactly the chosen camera (deviceId exact)', async () => {
+    const user = userEvent.setup()
+    const m = mockBoth()
+    render(<App />)
+    await openPlayersStep(user)
+    await user.click(screen.getByLabelText('Minha webcam'))
+    await user.click(screen.getByRole('button', { name: 'Permitir e listar câmeras' }))
+    await user.selectOptions(await screen.findByLabelText('Câmera'), 'Minha webcam')
+    await user.click(screen.getByRole('button', { name: 'Ligar minha webcam' }))
+    await screen.findByTestId('webcam-label')
+
+    expect(m.getUserMedia).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        video: expect.objectContaining({ deviceId: { exact: 'w1' } }),
+        audio: false,
+      }),
+    )
   })
 
   it('"Parar captura" turns off the Meet capture and the webcam', async () => {
