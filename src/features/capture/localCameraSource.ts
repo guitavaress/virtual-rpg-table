@@ -26,8 +26,11 @@ export function cameraConstraints({
   const size = CAMERA_QUALITIES[quality]
   return {
     video: {
-      // `ideal` (not `exact`) so a camera without 1080p still opens at what it has.
-      ...(deviceId ? { deviceId } : {}),
+      // The chosen camera is MANDATORY (`exact`). A bare deviceId is only a preference,
+      // and Chrome may then open another camera that better matches the 1080p `ideal`
+      // (seen with "Camera (NVIDIA Broadcast)": it opened the physical webcam instead).
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      // Size and fps stay `ideal`, so a camera without 1080p still opens at what it has.
       width: { ideal: size.width },
       height: { ideal: size.height },
       frameRate: { ideal: 30 },
