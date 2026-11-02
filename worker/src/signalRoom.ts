@@ -11,8 +11,8 @@ import {
 
 /** A sala expira depois de 2 h sem nenhum peer conectado. */
 export const ROOM_IDLE_MS = 2 * 60 * 60 * 1000
-/** Uma oferta SDP de vídeo com candidatos fica bem abaixo disso. */
-export const MAX_MESSAGE_CHARS = 64 * 1024
+/** Teto em bytes UTF-8. Uma oferta SDP de vídeo com candidatos fica bem abaixo disso. */
+export const MAX_MESSAGE_BYTES = 64 * 1024
 /** Teto de credenciais TURN por sala (cada uma vale ≈ 4 h). */
 export const MAX_TURN_ISSUES = 20
 /** O mínimo para a sala existir. Sem SDP, sem IP, sem nada do conteúdo. */
@@ -42,23 +42,26 @@ export class SignalRoom extends DurableObject<Env> {
     return { ok: true, expiresAt }
   }
 
-  /** Só recebe o upgrade de WebSocket, já filtrado (origem, token) pelo Worker. */
+  /**
+   * Só recebe o upgrade de WebSocket, já filtrado (origem, token) pelo Worker.
+   * Recusas voltam com o código no corpo (texto puro); o Worker põe os cabeçalhos comuns.
+   */
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
-      return new Response('Esperava WebSocket', { status: 426 })
+      return refuse('upgrade-required', 426)
     }
     const role = new URL(request.url).searchParams.get('role')
-    if (!isPeerRole(role)) return new Response('Papel inválido', { status: 400 })
+    if (!isPeerRole(role)) return refuse('role', 400)
 
     const meta = await this.readMeta()
-    if (!meta) return new Response('Sala não encontrada', { status: 404 })
+    if (!meta) return refuse('not-found', 404)
     const peers = this.openSockets()
     if (peers.length === 0 && meta.expiresAt <= Date.now()) {
       await this.ctx.storage.deleteAll()
-      return new Response('Sala expirada', { status: 410 })
+      return refuse('expired', 410)
     }
     // Uma vaga por papel e só dois papéis: no máximo 2 peers. Um terceiro cai aqui.
-    if (this.openSockets(role).length > 0) return new Response('Vaga ocupada', { status: 409 })
+    if (this.openSockets(role).length > 0) return refuse('taken', 409)
 
     const pair = new WebSocketPair()
     const client = pair[0]
@@ -93,7 +96,8 @@ export class SignalRoom extends DurableObject<Env> {
       ws.close(1003, 'Só texto')
       return
     }
-    if (message.length > MAX_MESSAGE_CHARS) {
+    // length em UTF-16 é atalho barato; o teto vale em bytes UTF-8 (até 3 por unidade).
+    if (message.length > MAX_MESSAGE_BYTES || utf8Length(message) > MAX_MESSAGE_BYTES) {
       ws.close(1009, 'Mensagem grande demais')
       return
     }
@@ -162,6 +166,18 @@ export class SignalRoom extends DurableObject<Env> {
 function roleOf(tags: string[]): PeerRole | null {
   const role = tags.find(isPeerRole)
   return role ?? null
+}
+
+export type RefusalCode = 'upgrade-required' | 'role' | 'not-found' | 'expired' | 'taken'
+
+function refuse(code: RefusalCode, status: number): Response {
+  return new Response(code, { status })
+}
+
+const encoder = new TextEncoder()
+
+function utf8Length(text: string): number {
+  return encoder.encode(text).byteLength
 }
 
 function send(ws: WebSocket, notice: PeerNotice): void {
