@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CalibrationView, type CalibrationStep } from '../components/Calibration/CalibrationView'
 import { CaptureSetup } from '../components/CaptureSetup/CaptureSetup'
 import { TableView } from '../components/VirtualTable/TableView'
 import { CapturedDisplaySource } from '../features/capture/displaySource'
+import { LocalCameraSource, type CameraOptions } from '../features/capture/localCameraSource'
 import { LocalVideoFileSource } from '../features/capture/fileSource'
 import { SyntheticTestSource } from '../features/capture/syntheticSource'
 import { useCapture } from '../features/capture/useCapture'
@@ -29,6 +30,8 @@ export function App() {
   const [step, setStep] = useState<CalibrationStep>('roi')
   // True after "Reconectar" on the table: keep the table up while the picker is open.
   const [reconnecting, setReconnecting] = useState(false)
+  // Options of the last camera started, so "Reconectar" reopens the same camera.
+  const lastCamera = useRef<CameraOptions | null>(null)
 
   useEffect(() => {
     if (persist) saveTableConfig(config)
@@ -52,11 +55,20 @@ export function App() {
     void start(source)
   }
   const selectDisplay = (): void => startFresh(new CapturedDisplaySource())
+  const selectCamera = (options: CameraOptions): void => {
+    lastCamera.current = options
+    startFresh(new LocalCameraSource(options))
+  }
   const selectFile = (file: File): void => startFresh(new LocalVideoFileSource(file))
   const selectSynthetic = (): void => startFresh(new SyntheticTestSource())
   const reconnect = (): void => {
     setReconnecting(true)
-    void start(new CapturedDisplaySource())
+    const camera = lastCamera.current
+    void start(
+      camera && state.status !== 'idle' && state.kind === 'camera'
+        ? new LocalCameraSource(camera)
+        : new CapturedDisplaySource(),
+    )
   }
 
   const tableUp =
@@ -105,6 +117,7 @@ export function App() {
       state={state}
       hasSavedConfig={persist && storageWritable}
       onSelectDisplay={selectDisplay}
+      onSelectCamera={selectCamera}
       onSelectFile={selectFile}
       onSelectSynthetic={selectSynthetic}
       onForgetConfig={forgetConfig}

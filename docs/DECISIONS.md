@@ -82,3 +82,21 @@ Formato: contexto → decisão → consequência. Entradas mais novas no fim.
 - **Contexto:** a revisão apontou que qualquer ajuste na calibração já salvava. Assim, depois de um reload, uma calibração inacabada abria direto como mesa.
 - **Decisão:** nada é salvo até o primeiro "Ir para a mesa". A partir daí, cada alteração é salva. O aviso "está salva neste navegador" só aparece se o storage aceita escrita (testado uma vez com uma chave de sonda).
 - **Consequência:** se a página for recarregada antes de ir para a mesa, a calibração se perde. Isso é aceitável, porque são poucos ajustes.
+
+## D-016 — Câmera direta adiantada para F1.5, antes da F2 (2026-11-01)
+
+- **Contexto:** na especificação, a câmera direta via WebRTC é a Fase 5, depois do piloto. A captura do Meet limita a nitidez de cada retrato: compressão do Meet, tile reduzido e recaptura da tela.
+- **Decisão:** o PO adiantou a fonte direta para a F1.5, antes da detecção facial. Ela entra como fonte **opcional**; a captura do Meet continua disponível.
+- **Consequência:** a F2 já poderá usar imagem melhor. A F1.5 publica o app em HTTPS, o que antecipa um pré-requisito da F4. Plano: `docs/tasks/F1.5.md`.
+
+## D-017 — Infraestrutura WebRTC na Cloudflare (2026-11-01)
+
+- **Contexto:** as opções eram:
+  - **Cloudflare:** Pages + Worker/Durable Object + Realtime TURN;
+  - **LiveKit Cloud:** SFU, com a mídia sempre passando pelo servidor deles;
+  - **PeerJS público:** sem garantia de funcionamento e sem TURN.
+- **Decisão:** usar a Cloudflare. Uma única conta cobre hospedagem HTTPS, sinalização e TURN. A mídia vai P2P e só usa o relay TURN quando a rede bloqueia; mesmo no relay, continua cifrada.
+- **Consequência:**
+  - o PO precisa de uma conta Cloudflare;
+  - o Worker guarda a chave TURN e emite credenciais curtas;
+  - o plano gratuito do TURN, na data desta decisão, era 1.000 GB/mês somado ao SFU, com o excedente a US$ 0,05/GB. Revalidar os limites na W1.

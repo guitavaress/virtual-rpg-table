@@ -269,3 +269,88 @@ describe('App persistence and reconnect rules (F1 review)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/não conseguiu reproduzir este vídeo/)
   })
 })
+
+describe('App camera source (F1.5 W0)', () => {
+  /** A camera whose labels only appear after the first getUserMedia, like a real browser. */
+  function mockCamera(impl: (c?: MediaStreamConstraints) => Promise<MediaStream>) {
+    let granted = false
+    const getUserMedia = vi.fn<(c?: MediaStreamConstraints) => Promise<MediaStream>>(async (c) => {
+      const stream = await impl(c)
+      granted = true
+      return stream
+    })
+    const enumerateDevices = vi.fn<() => Promise<MediaDeviceInfo[]>>(() =>
+      Promise.resolve([
+        { kind: 'videoinput', deviceId: 'cam-a', label: granted ? 'Webcam A' : '' },
+        { kind: 'videoinput', deviceId: 'cam-b', label: granted ? 'Webcam B' : '' },
+      ] as MediaDeviceInfo[]),
+    )
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia, enumerateDevices },
+    })
+    return { getUserMedia, enumerateDevices }
+  }
+
+  const liveStream = () => {
+    const track = new FakeTrack('video', 'Webcam B')
+    track.settings = { width: 1280, height: 720, frameRate: 30 }
+    return { track, stream: new FakeStream([track]) }
+  }
+
+  it('first click asks permission and lists cameras; second click opens the chosen one', async () => {
+    const user = userEvent.setup()
+    const { stream, track } = liveStream()
+    const probe = new FakeTrack('video')
+    const m = mockCamera((c) =>
+      Promise.resolve(asMediaStream(c?.video === true ? new FakeStream([probe]) : stream)),
+    )
+    render(<App />)
+
+    expect(screen.queryByLabelText('Câmera')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Câmera deste computador' }))
+    // The probe asks for video only and is released at once.
+    expect(m.getUserMedia).toHaveBeenCalledWith({ video: true, audio: false })
+    expect(probe.stopCalls).toBe(1)
+
+    await user.selectOptions(await screen.findByLabelText('Câmera'), 'Webcam B')
+    await user.selectOptions(screen.getByLabelText('Qualidade'), '720p')
+    await user.click(screen.getByRole('button', { name: 'Usar câmera deste computador' }))
+
+    expect(m.getUserMedia).toHaveBeenLastCalledWith({
+      video: {
+        deviceId: 'cam-b',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+      },
+      audio: false,
+    })
+    expect(await screen.findByRole('heading', { name: 'Calibração' })).toBeInTheDocument()
+    expect(screen.getByTestId('source-label')).toHaveTextContent('Webcam B')
+    expect(screen.getByTestId('track-resolution')).toHaveTextContent('1280×720 a 30 fps')
+
+    await user.click(screen.getByRole('button', { name: 'Parar captura' }))
+    expect(stream.allStopped).toBe(true)
+    expect(track.stopCalls).toBeGreaterThan(0)
+  })
+
+  it('explains the Windows webcam limit when another program holds the camera', async () => {
+    const user = userEvent.setup()
+    mockCamera(() => Promise.reject(domError('NotReadableError')))
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Câmera deste computador' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/programas diferentes não compartilham a webcam/)
+    expect(alert).toHaveTextContent(/MESMO navegador/)
+  })
+
+  it('a denied permission keeps the setup usable with a clear message', async () => {
+    const user = userEvent.setup()
+    mockCamera(() => Promise.reject(domError('NotAllowedError')))
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Câmera deste computador' }))
+    expect(await screen.findByText(/permissão da câmera foi negada/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Câmera deste computador' })).toBeEnabled()
+  })
+})

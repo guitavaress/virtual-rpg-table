@@ -10,7 +10,8 @@ describe('toCaptureError', () => {
     ['NotSupportedError', 'unsupported'],
     ['TypeError', 'unknown'],
     ['NotFoundError', 'source-unavailable'],
-    ['NotReadableError', 'source-unavailable'],
+    ['NotReadableError', 'source-busy'],
+    ['OverconstrainedError', 'overconstrained'],
     ['AbortError', 'source-unavailable'],
     ['SomethingNew', 'unknown'],
   ])('%s → %s', (name, code) => {

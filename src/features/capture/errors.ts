@@ -22,7 +22,8 @@ const CODE_BY_NAME: Readonly<Record<string, CaptureErrorCode>> = {
   InvalidStateError: 'no-user-gesture',
   NotSupportedError: 'unsupported',
   NotFoundError: 'source-unavailable',
-  NotReadableError: 'source-unavailable',
+  NotReadableError: 'source-busy',
+  OverconstrainedError: 'overconstrained',
   AbortError: 'source-unavailable',
 }
 

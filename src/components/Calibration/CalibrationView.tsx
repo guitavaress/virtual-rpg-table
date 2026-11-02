@@ -33,6 +33,7 @@ import { PlayersPanel } from './PlayersPanel'
 
 const KIND_LABEL: Record<SourceKind, string> = {
   display: 'Captura do navegador',
+  camera: 'Câmera deste computador',
   file: 'Vídeo local',
   synthetic: 'Fonte sintética',
 }
@@ -221,6 +222,12 @@ export function CalibrationView({
                 <dd data-testid="source-resolution">
                   {videoSize.width > 0 ? `${videoSize.width}×${videoSize.height}` : 'aguardando…'}
                 </dd>
+                {kind === 'camera' && (
+                  <>
+                    <dt className="text-stone-500">Entregue pela câmera</dt>
+                    <dd data-testid="track-resolution">{describeTrackSettings(media)}</dd>
+                  </>
+                )}
                 <dt className="text-stone-500">Região (px)</dt>
                 <dd>
                   {roiPx.width > 0
@@ -261,6 +268,15 @@ export function CalibrationView({
       </div>
     </main>
   )
+}
+
+/** What `track.getSettings()` says the camera really delivers (the spike's key measurement). */
+function describeTrackSettings(media: AttachedMedia): string {
+  if (media.kind !== 'stream') return '—'
+  const settings = media.stream.getVideoTracks()[0]?.getSettings?.()
+  if (!settings?.width || !settings.height) return 'indisponível'
+  const fps = settings.frameRate ? ` a ${Math.round(settings.frameRate)} fps` : ''
+  return `${settings.width}×${settings.height}${fps}`
 }
 
 function StepTab({

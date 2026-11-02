@@ -79,6 +79,31 @@ A automação não reproduz o seletor de janela do navegador, então este roteir
 10. Repita o passo 3 escolhendo a **tela inteira**.
     - Observação: no Windows, uma janela **minimizada** pode congelar a captura. Prefira capturar a aba.
 
+### Câmera da sala, W0 (F1.5): spike sem rede
+
+Objetivo: descobrir se o Meet e este app **dividem a mesma webcam** e qual resolução a câmera realmente entrega. O resultado decide se a W1 segue com o plano principal (câmera direta via WebRTC) ou com o plano B (sala só com áudio no Meet). A automação só cobre a câmera falsa do Chromium, então este teste no PC da SALA é obrigatório.
+
+Preparação: no PC da sala, num navegador só (Chrome **ou** Edge), com o Meet aberto e **usando a câmera**.
+
+1. Abra o app em **outra aba do MESMO navegador** (mesmo perfil) em que o Meet está aberto.
+2. Em **Câmera deste computador**, clique no botão. O primeiro clique pede a permissão e lista as câmeras.
+3. Escolha a câmera da sala e a qualidade **1080p**, e clique em **Usar câmera deste computador**.
+4. Na Calibração, anote **Resolução da fonte** (do `<video>`) e **Entregue pela câmera** (`track.getSettings()`, com fps).
+5. Volte para a aba do Meet e confira o vídeo da sala.
+6. Repita com a qualidade **720p**.
+7. Clique em **Parar captura**: a câmera deve continuar no Meet, e a luz só apaga quando o Meet também a liberar.
+8. Repita tudo em outro navegador (Edge ↔ Chrome) e também com o app num navegador **diferente** do Meet, para registrar o comportamento.
+
+Anote para cada combinação:
+
+| Navegador do app       | Navegador do Meet | Funcionou?  | Resolução real (1080p / 720p)          | Meet manteve o vídeo? | Mensagem de erro |
+| ---------------------- | ----------------- | ----------- | -------------------------------------- | --------------------- | ---------------- |
+| Chrome (outra aba)     | Chrome            | Sim         | 1920×1080 a 30 fps / 1280×720 a 30 fps | Sim                   | —                |
+| Edge                   | Edge              | não testado | —                                      | —                     | —                |
+| Navegadores diferentes | —                 | não testado | —                                      | —                     | —                |
+
+Se aparecer "A câmera está em uso por outro programa", é o `NotReadableError`: no Windows, programas (e às vezes navegadores) diferentes não compartilham a webcam. Esse resultado também vale como dado do gate.
+
 ### Mesa (F1)
 
 1. Com a aba do Meet capturada, ajuste a moldura da câmera coletiva e clique em **Próximo: jogadores**.
