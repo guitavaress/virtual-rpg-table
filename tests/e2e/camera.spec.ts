@@ -65,3 +65,42 @@ test('fake camera → permission → list → calibration with real resolution �
   await expect(page.getByRole('heading', { name: 'Virtual RPG Table' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Usar câmera deste computador' })).toBeVisible()
 })
+
+test('Meet capture (synthetic here) and the webcam run together; the remote seat shows the webcam', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Usar fonte sintética de teste' }).click()
+  await page.getByRole('button', { name: 'Próximo: jogadores' }).click()
+  await page.getByRole('button', { name: 'Distribuir automaticamente' }).click()
+
+  await page.getByLabel('Minha webcam').check()
+  // Labels may already be visible with the fake-UI flag; otherwise grant first.
+  const grant = page.getByRole('button', { name: 'Permitir e listar câmeras' })
+  if (await grant.isVisible()) await grant.click()
+  await page.getByRole('button', { name: 'Ligar minha webcam' }).click()
+  await expect(page.getByTestId('webcam-label')).toBeVisible()
+  await expect(page.getByTestId('webcam-resolution')).toHaveText(/^\d+×\d+/)
+
+  await page.getByRole('button', { name: 'Ir para a mesa' }).click()
+  await expect(page.getByRole('heading', { name: 'Mesa' })).toBeVisible()
+
+  const painted = (selector: string) =>
+    page.evaluate((sel) => {
+      const c = document.querySelector<HTMLCanvasElement>(sel)
+      const ctx = c?.getContext('2d')
+      if (!c || !ctx || c.width === 0) return false
+      const d = ctx.getImageData(0, 0, c.width, c.height).data
+      for (let i = 3; i < d.length; i += 4) if ((d[i] ?? 0) > 0) return true
+      return false
+    }, selector)
+
+  // The five Meet portraits and the remote seat (webcam) are all drawn.
+  await expect(page.getByRole('article')).toHaveCount(6)
+  await expect.poll(() => painted('[data-area="remote"] canvas')).toBe(true)
+  await expect.poll(() => painted('[data-area="p1"] canvas')).toBe(true)
+
+  // Leaving the table turns off both sources.
+  await page.getByRole('button', { name: 'Parar captura' }).click()
+  await expect(page.getByRole('heading', { name: 'Virtual RPG Table' })).toBeVisible()
+})

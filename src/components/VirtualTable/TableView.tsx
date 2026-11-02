@@ -16,10 +16,21 @@ export interface TableViewProps {
   onCalibrate(): void
   onReconnect(): void
   onStop(): void
+  /** The remote seat's own source (this computer's webcam). */
+  webcam: CaptureState
+  onStartWebcam(): void
 }
 
 /** Screen C: the five table portraits around a central area, plus the remote seat. */
-export function TableView({ config, capture, onCalibrate, onReconnect, onStop }: TableViewProps) {
+export function TableView({
+  config,
+  capture,
+  onCalibrate,
+  onReconnect,
+  onStop,
+  webcam,
+  onStartWebcam,
+}: TableViewProps) {
   const media: AttachedMedia | null = capture.status === 'active' ? capture.media : null
   const [video, videoRef] = useAttachedVideo(media)
   // Remembers which media failed to play, so a new source clears the error.
@@ -40,6 +51,22 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
   const canvasRef = usePortraitRenderer(video, rects)
   const lost = media === null
 
+  const webcamMedia: AttachedMedia | null = webcam.status === 'active' ? webcam.media : null
+  const [webcamVideo, webcamVideoRef] = useAttachedVideo(webcamMedia)
+  const webcamSize = useVideoSize(webcamVideo)
+  const webcamRects = useMemo<PortraitRects>(
+    () => ({
+      remote:
+        config.remote.mode === 'webcam'
+          ? portraitFrameRect(config.remote.webcamCrop, FULL_FRAME, webcamSize)
+          : null,
+    }),
+    [config.remote.mode, config.remote.webcamCrop, webcamSize],
+  )
+  const webcamCanvasRef = usePortraitRenderer(webcamVideo, webcamRects)
+  const webcamWanted = config.remote.mode === 'webcam'
+  const webcamLost = webcamWanted && webcamMedia === null
+
   return (
     <main className="flex min-h-screen flex-col gap-3 px-4 py-3 lg:px-8">
       {/* Frames come from this element; it stays in the DOM but out of sight. */}
@@ -51,6 +78,16 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
         loop={capture.status === 'active' && capture.kind === 'file'}
         disablePictureInPicture
         onError={() => setFailedMedia(media)}
+        aria-hidden="true"
+        className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
+      />
+
+      <video
+        ref={webcamVideoRef}
+        muted
+        playsInline
+        autoPlay
+        disablePictureInPicture
         aria-hidden="true"
         className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
       />
@@ -88,6 +125,8 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
 
       {lost && <LostSourceBanner capture={capture} onReconnect={onReconnect} onStop={onStop} />}
 
+      {webcamLost && <WebcamBanner webcam={webcam} onStart={onStartWebcam} />}
+
       <div className="table-layout grid grid-cols-2 gap-4 sm:grid-cols-3 lg:gap-x-6 lg:gap-y-4">
         {config.players.map((p, i) => (
           <div key={p.id} data-area={p.id} className="lg:justify-self-center">
@@ -115,13 +154,47 @@ export function TableView({ config, capture, onCalibrate, onReconnect, onStop }:
             name={config.remote.name}
             character={config.remote.character}
             color={PLAYER_COLORS.remote}
-            canvasRef={config.remote.mode === 'crop' ? canvasRef('remote') : undefined}
-            lost={lost}
+            canvasRef={
+              config.remote.mode === 'webcam'
+                ? webcamCanvasRef('remote')
+                : config.remote.mode === 'crop'
+                  ? canvasRef('remote')
+                  : undefined
+            }
+            lost={config.remote.mode === 'webcam' ? webcamLost : lost}
             badge="Remoto"
           />
         </div>
       </div>
     </main>
+  )
+}
+
+function WebcamBanner({ webcam, onStart }: { webcam: CaptureState; onStart(): void }) {
+  let text =
+    'Sua webcam não está ligada. Clique em Ligar webcam (use o mesmo navegador em que o Meet está aberto).'
+  if (webcam.status === 'requesting') text = 'Abrindo a webcam…'
+  if (webcam.status === 'ended') {
+    text = 'A webcam foi desconectada ou liberada. Clique em Reconectar webcam.'
+  }
+  if (webcam.status === 'error') text = describeCaptureError('camera', webcam.error)
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-700/50 bg-teal-950/40 px-4 py-3 text-sm text-teal-100"
+    >
+      <p className="max-w-3xl">{text}</p>
+      <button
+        type="button"
+        onClick={onStart}
+        disabled={webcam.status === 'requesting'}
+        className="rounded-lg bg-teal-300 px-3 py-1.5 font-semibold text-stone-950 hover:bg-teal-200 focus-visible:ring-4 focus-visible:ring-teal-100 focus-visible:outline-none disabled:opacity-60"
+      >
+        {webcam.status === 'ended' || webcam.status === 'error'
+          ? 'Reconectar webcam'
+          : 'Ligar webcam'}
+      </button>
+    </div>
   )
 }
 

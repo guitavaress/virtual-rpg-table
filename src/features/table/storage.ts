@@ -2,6 +2,7 @@ import { clampRect, type NormRect } from '../calibration/roi'
 import type { PortraitCrop } from '../compositor/portrait'
 import {
   CHARACTER_MAX,
+  DEFAULT_WEBCAM_CROP,
   defaultConfig,
   NAME_MAX,
   PLAYER_IDS,
@@ -56,9 +57,11 @@ function parseRemote(v: unknown): RemoteSlot | null {
   const name = parseText(v.name, NAME_MAX)
   const character = parseText(v.character, CHARACTER_MAX)
   const crop = parseCrop(v.crop)
-  const mode = v.mode === 'crop' || v.mode === 'avatar' ? v.mode : null
-  if (name === null || character === null || !crop || !mode) return null
-  return { name, character, mode, crop }
+  const mode = v.mode === 'crop' || v.mode === 'avatar' || v.mode === 'webcam' ? v.mode : null
+  // Setups saved before the webcam mode have no webcamCrop: fall back to the default.
+  const webcamCrop = v.webcamCrop === undefined ? DEFAULT_WEBCAM_CROP : parseCrop(v.webcamCrop)
+  if (name === null || character === null || !crop || !mode || !webcamCrop) return null
+  return { name, character, mode, crop, webcamCrop }
 }
 
 /** Validates untrusted JSON (storage today, file import in F3). Null if invalid. */

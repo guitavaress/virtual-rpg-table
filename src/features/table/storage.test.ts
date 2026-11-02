@@ -30,6 +30,13 @@ describe('parseTableConfig', () => {
       },
     ],
     [
+      'webcam crop with NaN',
+      {
+        ...defaultConfig(),
+        remote: { ...defaultConfig().remote, webcamCrop: { cx: Number.NaN, cy: 0, size: 1 } },
+      },
+    ],
+    [
       'unknown remote mode',
       { ...defaultConfig(), remote: { ...defaultConfig().remote, mode: 'x' } },
     ],
@@ -50,6 +57,21 @@ describe('parseTableConfig', () => {
       players: defaultConfig().players.map((p) => ({ ...p, name: 'x'.repeat(500) })),
     }
     expect(parseTableConfig(raw)?.players[0]?.name).toHaveLength(NAME_MAX)
+  })
+
+  it('accepts the webcam mode and keeps its own crop', () => {
+    const webcamCrop = { cx: 0.4, cy: 0.3, size: 0.5 }
+    const raw = {
+      ...defaultConfig(),
+      remote: { ...defaultConfig().remote, mode: 'webcam', webcamCrop },
+    }
+    expect(parseTableConfig(raw)?.remote).toMatchObject({ mode: 'webcam', webcamCrop })
+  })
+
+  it('upgrades a setup saved before the webcam mode (no webcamCrop)', () => {
+    const { webcamCrop: _omit, ...oldRemote } = defaultConfig().remote
+    const parsed = parseTableConfig({ ...defaultConfig(), remote: oldRemote })
+    expect(parsed?.remote.webcamCrop).toEqual(defaultConfig().remote.webcamCrop)
   })
 
   it('ignores unknown extra fields', () => {
