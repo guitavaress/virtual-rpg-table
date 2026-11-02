@@ -4,17 +4,22 @@ import { describeCaptureError, ENDED_MESSAGE } from './messages'
 
 export interface CaptureSetupProps {
   state: CaptureState
+  /** A table setup (names, crops) is saved in this browser. */
+  hasSavedConfig?: boolean
   onSelectDisplay(): void
   onSelectFile(file: File): void
   onSelectSynthetic(): void
+  onForgetConfig?(): void
 }
 
 /** Screen A: explain what happens, then let the user pick a source. */
 export function CaptureSetup({
   state,
+  hasSavedConfig = false,
   onSelectDisplay,
   onSelectFile,
   onSelectSynthetic,
+  onForgetConfig,
 }: CaptureSetupProps) {
   const fileInputId = useId()
   const busy = state.status === 'requesting'
@@ -93,6 +98,19 @@ export function CaptureSetup({
       </div>
 
       <StatusMessage state={state} />
+
+      {hasSavedConfig && onForgetConfig && (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+          A configuração da mesa (região, recortes e nomes) está salva neste navegador.
+          <button
+            type="button"
+            onClick={onForgetConfig}
+            className="text-stone-300 underline underline-offset-2 hover:text-stone-100"
+          >
+            Apagar configuração salva
+          </button>
+        </p>
+      )}
     </main>
   )
 }

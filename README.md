@@ -2,7 +2,7 @@
 
 Camada visual local que transforma a câmera coletiva de uma chamada do Google Meet (cinco pessoas na mesma mesa) em retratos individuais, mais um card para o jogador remoto. A conversa e o áudio continuam no Meet.
 
-> **Estado:** Fase 0 (captura, preview e ROI manual). Especificação completa em [`docs/virtual-rpg-table-plano-claude-gpt.md`](docs/virtual-rpg-table-plano-claude-gpt.md).
+> **Estado:** Fase 1 (cinco retratos com recortes manuais, mesa com 6 cards e configuração salva no navegador). Especificação completa em [`docs/virtual-rpg-table-plano-claude-gpt.md`](docs/virtual-rpg-table-plano-claude-gpt.md).
 
 ## Privacidade e limites
 
@@ -38,17 +38,18 @@ Abra `http://localhost:5173` no Chrome/Edge **do Windows**. O WSL2 encaminha `lo
 
 ## Scripts
 
-| Comando                  | O que faz                                |
-| ------------------------ | ---------------------------------------- |
-| `npm run dev`            | Servidor de desenvolvimento (Vite)       |
-| `npm run build`          | Typecheck + build de produção em `dist/` |
-| `npm run preview`        | Serve o build                            |
-| `npm run lint`           | oxlint (avisos contam como erro)         |
-| `npm run typecheck`      | `tsc -b` (strict)                        |
-| `npm test`               | Vitest (unidade + componentes, jsdom)    |
-| `npm run format[:check]` | Prettier                                 |
+| Comando                  | O que faz                                     |
+| ------------------------ | --------------------------------------------- |
+| `npm run dev`            | Servidor de desenvolvimento (Vite)            |
+| `npm run build`          | Typecheck + build de produção em `dist/`      |
+| `npm run preview`        | Serve o build                                 |
+| `npm run lint`           | oxlint (avisos contam como erro)              |
+| `npm run typecheck`      | `tsc -b` (strict)                             |
+| `npm test`               | Vitest (unidade + componentes, jsdom)         |
+| `npm run format[:check]` | Prettier                                      |
+| `npm run test:e2e`       | Playwright (Chromium) sobre a fonte sintética |
 
-O E2E com Playwright entra na Fase 1.
+Na primeira vez, instale o navegador do Playwright com `npx playwright install chromium`. Ele fica em `~/.cache/ms-playwright`, fora do projeto. O E2E sobe o dev server sozinho, ou reaproveita um que já esteja rodando na porta 5173.
 
 ## Smoke test manual (Chrome **e** Edge no Windows)
 
@@ -77,6 +78,23 @@ A automação não reproduz o seletor de janela do navegador, então este roteir
    - [ ] Opcional: `chrome://webrtc-internals` (ou `edge://webrtc-internals`) não mostra captura ativa.
 10. Repita o passo 3 escolhendo a **tela inteira**.
     - Observação: no Windows, uma janela **minimizada** pode congelar a captura. Prefira capturar a aba.
+
+### Mesa (F1)
+
+1. Com a aba do Meet capturada, ajuste a moldura da câmera coletiva e clique em **Próximo: jogadores**.
+2. Clique em **Distribuir automaticamente** e ajuste cada recorte sobre um rosto: arraste para mover e use a alça do canto ou o slider para o zoom.
+   - [ ] As miniaturas do painel acompanham os recortes.
+3. Preencha nomes e personagens. No 6º card, escolha **Recorte da captura** e posicione a moldura tracejada sobre o seu próprio vídeo no Meet, se ele aparecer.
+4. Clique em **Ir para a mesa**:
+   - [ ] Cinco retratos ao vivo, sem deformação, e o card "Remoto".
+   - [ ] Os retratos **continuam se mexendo** depois de 1 minuto na mesa. O vídeo da fonte fica oculto nessa tela, e isso só pode ser confirmado no navegador real.
+   - [ ] Tudo cabe na tela em 1080p.
+5. Recarregue a página e capture o Meet de novo:
+   - [ ] Abre direto na mesa, com os nomes mantidos.
+6. Use **Parar compartilhamento** na barra do navegador:
+   - [ ] A mesa continua, com "Fonte perdida", e **Reconectar** volta ao vivo.
+7. Volte em **Calibrar → 1. Câmera coletiva** e mova a moldura:
+   - [ ] Os 5 recortes acompanham.
 
 ## Documentação
 

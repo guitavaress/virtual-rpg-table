@@ -49,3 +49,37 @@
 - Um request que termina depois de `stop()` ou de um `start()` mais novo é descartado e suas tracks são paradas.
 - O `<video>` sempre fica `muted`. Nenhum áudio é solicitado, e tracks de áudio inesperadas são descartadas.
 - O canvas só desenha, nunca lê pixels de volta (`getImageData`). Nada sai do navegador.
+
+# Fase 1: retratos e mesa
+
+```text
+ TableConfig (features/table/model.ts) ── localStorage (storage.ts, validado)
+   ├─ roi: NormRect                 (frame)
+   ├─ players[5].crop: PortraitCrop (relativo à ROI)  ┐
+   └─ remote.crop: PortraitCrop     (relativo ao frame)┤
+                                                       ▼
+                           portraitFrameRect (compositor/portrait.ts)
+                           → NormRect do frame, sempre 3:4 em pixels
+                                                       │
+            usePortraitRenderer: 1 loop rVFC → drawImage em N canvases
+                    │                                     │
+     CalibrationView (passo 2: CropEditor + miniaturas)   TableView (6 PlayerCards)
+```
+
+| Caminho                                          | Responsabilidade                                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `src/features/compositor/portrait.ts`            | `PortraitCrop {cx, cy, size}` → retângulo 3:4; clamp na região; distribuição em colunas |
+| `src/features/compositor/usePortraitRenderer.ts` | Registro de canvases por slot e um único loop de desenho por tela                       |
+| `src/features/table/model.ts`                    | `TableConfig`, padrões, cores dos slots, iniciais                                       |
+| `src/features/table/storage.ts`                  | Validação de JSON não confiável, load/save/clear tolerantes a falha                     |
+| `src/features/calibration/CropEditor.tsx`        | Molduras 3:4 arrastáveis (mover, zoom pela alça, teclado)                               |
+| `src/components/Calibration/PlayersPanel.tsx`    | Miniaturas ao vivo, nome, personagem, zoom e modo do remoto                             |
+| `src/components/VirtualTable/TableView.tsx`      | Mesa: layout, vídeo oculto, aviso de fonte perdida e reconexão                          |
+| `src/components/PlayerCard/PlayerCard.tsx`       | Card 3:4 com iniciais por baixo do canvas e placa de nome                               |
+
+## Invariantes da F1
+
+- Os recortes dos jogadores são relativos à ROI: mover a ROI move os 5 juntos. O do remoto é relativo ao frame.
+- A proporção 3:4 é garantida em pixels da fonte. Depois do arredondamento para pixels inteiros, o desvio é de no máximo 1 px.
+- Cada tela tem o seu próprio `<video>` (o da mesa fica oculto). Trocar de tela reanexa o mesmo `MediaStream`; nenhuma track nova é pedida.
+- O `localStorage` guarda só a configuração (ROI, recortes, nomes, personagens e modo do remoto), nunca frames.

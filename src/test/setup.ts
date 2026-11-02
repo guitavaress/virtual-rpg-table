@@ -26,4 +26,5 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
 })
