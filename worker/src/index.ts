@@ -1,3 +1,4 @@
+import { readBodyLimited } from './body'
 import { isOriginAllowed, parseAllowedOrigins } from './origin'
 import { isPeerRole, tokenFromProtocols } from './protocol'
 import { ROOM_IDLE_MS, type SignalRoom } from './signalRoom'
@@ -56,7 +57,10 @@ async function connect(request: Request, url: URL, env: Env, cors: string): Prom
   if (!isPeerRole(url.searchParams.get('role'))) return json({ error: 'role' }, 400, cors)
   const token = tokenFromProtocols(request.headers.get('Sec-WebSocket-Protocol'))
   if (!token) return json({ error: 'token' }, 400, cors)
-  return roomStub(env, token).fetch(request)
+  const response = await roomStub(env, token).fetch(request)
+  if (response.status === 101) return response
+  // Recusa do DO (código no corpo): mesmos cabeçalhos das outras rotas.
+  return json({ error: (await response.text()).slice(0, 32) }, response.status, cors)
 }
 
 async function issueTurn(request: Request, env: Env, cors: string): Promise<Response> {
@@ -80,18 +84,11 @@ function roomStub(env: Env, token: string): DurableObjectStub<SignalRoom> {
   return env.SIGNAL_ROOM.get(env.SIGNAL_ROOM.idFromName(token))
 }
 
-const MAX_BODY_CHARS = 1024
+const MAX_BODY_BYTES = 1024
 
 async function tokenFromBody(request: Request): Promise<string | null> {
-  const declared = Number(request.headers.get('Content-Length') ?? '0')
-  if (declared > MAX_BODY_CHARS) return null
-  let text: string
-  try {
-    text = await request.text()
-  } catch {
-    return null
-  }
-  if (text.length > MAX_BODY_CHARS) return null
+  const text = await readBodyLimited(request, MAX_BODY_BYTES)
+  if (text === null) return null
   let body: unknown
   try {
     body = JSON.parse(text)
